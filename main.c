@@ -1,5 +1,13 @@
 #include <gtk/gtk.h>
 
+enum {
+    COL_INDEX = 0,
+    COL_ID,
+    COL_NAME,
+    COL_PATH,
+    N_COLUMNS
+};
+
 void show_file_dialog(GtkButton *button,
                        gpointer   file_chooser_dialog)
 {
@@ -28,7 +36,7 @@ void file_activated(GtkFileChooser *chooser,
     filename = gtk_file_chooser_get_filename(chooser);
     g_print("%s\n", filename);
     gtk_list_store_append (liststore, &iter);
-    gtk_list_store_set(liststore, &iter, 2, filename, -1);
+    gtk_list_store_set(liststore, &iter, COL_INDEX, 10, COL_NAME, filename, -1);
     gtk_widget_hide (GTK_WIDGET(chooser));
     /* g_free(filename); */
 }
