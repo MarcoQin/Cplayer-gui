@@ -104,68 +104,6 @@
       <!-- column-name path -->
       <column type="gchararray"/>
     </columns>
-    <data>
-      <row>
-        <col id="0">1</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">start</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">4</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">Y axis intersection</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">5</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">X axis intersection</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">6</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">End</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">7</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">1</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">0</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">2</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">0</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">3</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">0</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">4</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">0</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">5</col>
-        <col id="3" translatable="yes"/>
-      </row>
-      <row>
-        <col id="0">0</col>
-        <col id="1">0</col>
-        <col id="2" translatable="yes">6</col>
-        <col id="3" translatable="yes"/>
-      </row>
-    </data>
   </object>
   <object class="GtkWindow" id="window1">
     <property name="width_request">600</property>
