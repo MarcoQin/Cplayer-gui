@@ -13,7 +13,11 @@ Cplayer with a GTK+ GUI.
 
 ####Compile:
 
-    gcc `pkg-config --cflags gtk+-3.0` -o cplayer main.c `pkg-config --libs gtk+-3.0`
+    gcc -o cplayer main.c $(pkg-config --cflags --libs gtk+-3.0)
+
+####GThread example
+
+    gcc -o thread_example thread_example.c $(pkg-config --cflags --libs gtk+-3.0 gthread-2.0)
 
 ####Screenshots:
 
