@@ -101,6 +101,12 @@ void remove_files(GtkButton *button, gpointer *tree_view) {
     g_list_free(rr_list);
 }
 
+void slider_value_changed(GtkAdjustment *adjustment,
+                          gpointer *user_data) {
+    gdouble value = gtk_adjustment_get_value(adjustment);
+    g_print("slider value: %f\n", value);
+}
+
 int main(int argc, char *argv[]) {
     GtkBuilder *builder;
     GObject *button;
@@ -108,6 +114,7 @@ int main(int argc, char *argv[]) {
     GObject *liststore;
     GObject *file_chooser_dialog;
     GObject *treeview;
+    GObject *slider_adjustment;
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
     gtk_builder_add_from_file(builder, "cplayer.ui", NULL);
@@ -150,6 +157,10 @@ int main(int argc, char *argv[]) {
 
     button = gtk_builder_get_object(builder, "button6");  /* "-"(remove files) button */
     g_signal_connect(button, "clicked", G_CALLBACK(remove_files), treeview);
+
+    slider_adjustment = gtk_builder_get_object(builder, "adjustment2");
+    g_signal_connect(slider_adjustment, "value-changed", G_CALLBACK(slider_value_changed), NULL);
+    gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 35.0);
 
     gtk_main();
     return 0;
