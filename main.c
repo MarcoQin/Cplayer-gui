@@ -71,9 +71,7 @@ gboolean re_index_func (GtkTreeModel *model,
 }
 
 void remove_files(GtkButton *button, gpointer *tree_view) {
-    GtkTreeModel *liststore = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
-    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view));
-    GList *rr_list = NULL;    /* list of GtkTreeRowReferences to remove */
+    GtkTreeModel *liststore = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view)); GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view)); GList *rr_list = NULL;    /* list of GtkTreeRowReferences to remove */
     GList *node;
     gtk_tree_selection_selected_foreach(selection,
                                         (GtkTreeSelectionForeachFunc) selection_foreach_fuc,
@@ -107,20 +105,41 @@ void slider_value_changed(GtkAdjustment *adjustment,
     g_print("slider value: %f\n", value);
 }
 
+void song_list_tree_view_row_activated (GtkTreeView *tree_view,
+                                        GtkTreePath *path,
+                                        GtkTreeViewColumn *column,
+                                        gpointer user_data) {
+    GtkTreeModel *model = gtk_tree_view_get_model(tree_view);
+    GtkTreeIter iter;
+
+    if (gtk_tree_model_get_iter(model, &iter, path))
+    {
+        gchar *name, *file_path;
+        gint id;
+        gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name, COL_PATH, &file_path, -1);
+
+        g_print("id: %d\n", id);
+        g_print("name: %s\n", name);
+        g_print("path: %s\n", file_path);
+        g_free(name);
+        g_free(file_path);
+    }
+}
+
 int main(int argc, char *argv[]) {
     GtkBuilder *builder;
     GObject *button;
     GObject *window;
     GObject *liststore;
     GObject *file_chooser_dialog;
-    GObject *treeview;
+    GObject *tree_view;
     GObject *slider_adjustment;
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
     gtk_builder_add_from_file(builder, "cplayer.ui", NULL);
     window = gtk_builder_get_object(builder, "window1");  /* main window */
 
-    treeview = gtk_builder_get_object(builder, "treeview1");
+    tree_view = gtk_builder_get_object(builder, "treeview1");
 
     liststore = gtk_builder_get_object(builder, "liststore1");  /* liststore */
 
@@ -156,11 +175,13 @@ int main(int argc, char *argv[]) {
     g_signal_connect(button, "clicked", G_CALLBACK(file_chooser_ok_button), w);
 
     button = gtk_builder_get_object(builder, "button6");  /* "-"(remove files) button */
-    g_signal_connect(button, "clicked", G_CALLBACK(remove_files), treeview);
+    g_signal_connect(button, "clicked", G_CALLBACK(remove_files), tree_view);
 
     slider_adjustment = gtk_builder_get_object(builder, "adjustment2");
     g_signal_connect(slider_adjustment, "value-changed", G_CALLBACK(slider_value_changed), NULL);
     gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 35.0);
+
+    g_signal_connect(tree_view, "row-activated", G_CALLBACK(song_list_tree_view_row_activated), NULL);
 
     gtk_main();
     return 0;
