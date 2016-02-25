@@ -1,5 +1,8 @@
 #include <gtk/gtk.h>
 
+#define DIRECTION_DOWN 1
+#define DIRECTION_UP 0
+
 enum { COL_INDEX = 0, COL_ID, COL_NAME, COL_PATH, N_COLUMNS };
 
 void show_file_dialog(GtkButton *button, gpointer file_chooser_dialog) {
@@ -45,46 +48,43 @@ void file_chooser_ok_button(GtkButton *button, GObject *user_data) {
     gtk_widget_hide(GTK_WIDGET(file_chooser));
 }
 
-void selection_foreach_fuc( GtkTreeModel *model,
-                            GtkTreePath  *path,
-                            GtkTreeIter  *iter,
-                            GList       **rowref_list) {
+void selection_foreach_fuc(GtkTreeModel *model, GtkTreePath *path,
+                           GtkTreeIter *iter, GList **rowref_list) {
     gint id;
-    gtk_tree_model_get (model, iter, COL_ID, &id, -1);
+    gtk_tree_model_get(model, iter, COL_ID, &id, -1);
     g_print("id is %d\n", id);
-    if (id != 0)
-    {
+    if (id != 0) {
         /* TODO: remove from sqlite3 database */
-        GtkTreeRowReference  *rowref;
+        GtkTreeRowReference *rowref;
         rowref = gtk_tree_row_reference_new(model, path);
         *rowref_list = g_list_append(*rowref_list, rowref);
     }
 }
 
-gboolean re_index_func (GtkTreeModel *model,
-                        GtkTreePath  *path,
-                        GtkTreeIter  *iter,
-                        gint *index) {
+gboolean re_index_func(GtkTreeModel *model, GtkTreePath *path,
+                       GtkTreeIter *iter, gint *index) {
     *index += 1;
     gtk_list_store_set(GTK_LIST_STORE(model), iter, COL_INDEX, *index, -1);
     return FALSE; /* do not stop walking the store, call us with next row */
 }
 
 void remove_files(GtkButton *button, gpointer *tree_view) {
-    GtkTreeModel *liststore = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view)); GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view)); GList *rr_list = NULL;    /* list of GtkTreeRowReferences to remove */
+    GtkTreeModel *liststore = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
+    GtkTreeSelection *selection =
+        gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view));
+    GList *rr_list = NULL; /* list of GtkTreeRowReferences to remove */
     GList *node;
-    gtk_tree_selection_selected_foreach(selection,
-                                        (GtkTreeSelectionForeachFunc) selection_foreach_fuc,
-                                        &rr_list);
-    for (node = rr_list; node != NULL; node = node->next)
-    {
+    gtk_tree_selection_selected_foreach(
+        selection, (GtkTreeSelectionForeachFunc)selection_foreach_fuc,
+        &rr_list);
+    for (node = rr_list; node != NULL; node = node->next) {
         GtkTreePath *path;
-        path = gtk_tree_row_reference_get_path((GtkTreeRowReference *)node->data);
-        if (path)
-        {
+        path =
+            gtk_tree_row_reference_get_path((GtkTreeRowReference *)node->data);
+        if (path) {
             GtkTreeIter iter;
-            if (gtk_tree_model_get_iter(GTK_TREE_MODEL(liststore), &iter, path))
-            {
+            if (gtk_tree_model_get_iter(GTK_TREE_MODEL(liststore), &iter,
+                                        path)) {
                 gtk_list_store_remove(GTK_LIST_STORE(liststore), &iter);
             }
         }
@@ -92,31 +92,29 @@ void remove_files(GtkButton *button, gpointer *tree_view) {
     /* re-render all row's index */
     gint index = 0;
     gtk_tree_model_foreach(GTK_TREE_MODEL(liststore),
-            (GtkTreeModelForeachFunc) re_index_func,
-            &index);
+                           (GtkTreeModelForeachFunc)re_index_func, &index);
 
-    g_list_foreach(rr_list, (GFunc) gtk_tree_row_reference_free, NULL);
+    g_list_foreach(rr_list, (GFunc)gtk_tree_row_reference_free, NULL);
     g_list_free(rr_list);
 }
 
-void slider_value_changed(GtkAdjustment *adjustment,
-                          gpointer *user_data) {
+void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     gdouble value = gtk_adjustment_get_value(adjustment);
     g_print("slider value: %f\n", value);
 }
 
-void song_list_tree_view_row_activated (GtkTreeView *tree_view,
-                                        GtkTreePath *path,
-                                        GtkTreeViewColumn *column,
-                                        gpointer user_data) {
+void song_list_tree_view_row_activated(GtkTreeView *tree_view,
+                                       GtkTreePath *path,
+                                       GtkTreeViewColumn *column,
+                                       gpointer user_data) {
     GtkTreeModel *model = gtk_tree_view_get_model(tree_view);
     GtkTreeIter iter;
 
-    if (gtk_tree_model_get_iter(model, &iter, path))
-    {
+    if (gtk_tree_model_get_iter(model, &iter, path)) {
         gchar *name, *file_path;
         gint id;
-        gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name, COL_PATH, &file_path, -1);
+        gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name, COL_PATH,
+                           &file_path, -1);
 
         g_print("id: %d\n", id);
         g_print("name: %s\n", name);
@@ -124,6 +122,81 @@ void song_list_tree_view_row_activated (GtkTreeView *tree_view,
         g_free(name);
         g_free(file_path);
     }
+}
+
+void tree_view_scroll(gpointer tree_view, gint direction) {
+    GtkTreePath *path;
+    GtkTreeIter iter;
+    GtkTreeViewColumn *col;
+    GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
+    gtk_tree_view_get_cursor(GTK_TREE_VIEW(tree_view), &path, &col);
+    gboolean first = FALSE;
+
+    /* With NULL as iter, we get the number of toplevel nodes. */
+    gint n_rows = gtk_tree_model_iter_n_children(model, NULL);
+
+    /* App start, nothing is selected */
+    if (path == NULL && n_rows != 0) {
+        if (direction == DIRECTION_DOWN) {
+            /* first node's path */
+            gtk_tree_model_get_iter_first(model, &iter);
+            path = gtk_tree_model_get_path(model, &iter);
+        } else {
+            /* get last node's path */
+            path = gtk_tree_path_new_from_indices(n_rows - 1, -1);
+        }
+        first = TRUE;
+    }
+    /* move the cursor down or up */
+    if (path != NULL) {
+        if (first != TRUE) {
+            if (direction == DIRECTION_DOWN) {
+                gtk_tree_path_next(path);
+            } else {
+                gboolean result = gtk_tree_path_prev(path);
+                if (result != TRUE) {
+                    path = gtk_tree_path_new_from_indices(n_rows - 1, -1);
+                }
+            }
+        }
+        /* when cursor is on the last row, called gtk_tree_path_next(path) will
+         * not fail
+         * and the path is not NULL, too. But the fact is that path is invalid
+         * at all
+         * so I have to verify weather the path is valid here */
+        if (path != NULL) {
+            if (gtk_tree_model_get_iter(GTK_TREE_MODEL(model), &iter, path) ==
+                FALSE) {
+                gtk_tree_model_get_iter_first(model, &iter);
+                path = gtk_tree_model_get_path(model, &iter);
+            }
+            gtk_tree_view_set_cursor(GTK_TREE_VIEW(tree_view), path, NULL,
+                                     FALSE);
+            /* get song id to player, name to display, path to load */
+            gchar *name, *file_path;
+            gint id;
+            gtk_tree_model_get_iter(GTK_TREE_MODEL(model), &iter, path);
+            gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name,
+                               COL_PATH, &file_path, -1);
+
+            g_print("id: %d\n", id);
+            g_print("name: %s\n", name);
+            g_print("path: %s\n", file_path);
+            g_free(name);
+            g_free(file_path);
+            /* end */
+        }
+    }
+    /* clean */
+    gtk_tree_path_free(path);
+}
+
+void next_button_pressed(GtkButton *button, gpointer tree_view) {
+    tree_view_scroll(tree_view, DIRECTION_DOWN);
+}
+
+void previous_button_pressed(GtkButton *button, gpointer tree_view) {
+    tree_view_scroll(tree_view, DIRECTION_UP);
 }
 
 int main(int argc, char *argv[]) {
@@ -137,21 +210,24 @@ int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
     gtk_builder_add_from_file(builder, "cplayer.ui", NULL);
-    window = gtk_builder_get_object(builder, "window1");  /* main window */
+    window = gtk_builder_get_object(builder, "window1"); /* main window */
 
     tree_view = gtk_builder_get_object(builder, "treeview1");
 
-    liststore = gtk_builder_get_object(builder, "liststore1");  /* liststore */
+    liststore = gtk_builder_get_object(builder, "liststore1"); /* liststore */
 
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-    file_chooser_dialog = gtk_builder_get_object(builder, "filechooserdialog1");  /* file chooser dialog */
+    file_chooser_dialog = gtk_builder_get_object(
+        builder, "filechooserdialog1"); /* file chooser dialog */
 
-    button = gtk_builder_get_object(builder, "button5");  /* "+"(add files) button */
+    button =
+        gtk_builder_get_object(builder, "button5"); /* "+"(add files) button */
     g_signal_connect(button, "clicked", G_CALLBACK(show_file_dialog),
                      file_chooser_dialog);
 
-    button = gtk_builder_get_object(builder, "button8");  /* filechooserdialog1 "cancel" button */
+    button = gtk_builder_get_object(
+        builder, "button8"); /* filechooserdialog1 "cancel" button */
     g_signal_connect(button, "clicked", G_CALLBACK(hide_file_dialog),
                      file_chooser_dialog);
 
@@ -168,20 +244,32 @@ int main(int argc, char *argv[]) {
     g_signal_connect(file_chooser_dialog, "file-activated",
                      G_CALLBACK(file_activated), liststore);
 
-    button = gtk_builder_get_object(builder, "button7");  /* filechooserdialog1 "ok" button */
+    button = gtk_builder_get_object(
+        builder, "button7"); /* filechooserdialog1 "ok" button */
     GtkWidget *w = gtk_label_new("this is a new lable");
     g_object_set_data(G_OBJECT(w), "file_chooser", file_chooser_dialog);
     g_object_set_data(G_OBJECT(w), "liststore", liststore);
     g_signal_connect(button, "clicked", G_CALLBACK(file_chooser_ok_button), w);
 
-    button = gtk_builder_get_object(builder, "button6");  /* "-"(remove files) button */
+    button = gtk_builder_get_object(builder,
+                                    "button6"); /* "-"(remove files) button */
     g_signal_connect(button, "clicked", G_CALLBACK(remove_files), tree_view);
 
     slider_adjustment = gtk_builder_get_object(builder, "adjustment2");
-    g_signal_connect(slider_adjustment, "value-changed", G_CALLBACK(slider_value_changed), NULL);
+    g_signal_connect(slider_adjustment, "value-changed",
+                     G_CALLBACK(slider_value_changed), NULL);
     gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 35.0);
 
-    g_signal_connect(tree_view, "row-activated", G_CALLBACK(song_list_tree_view_row_activated), NULL);
+    g_signal_connect(tree_view, "row-activated",
+                     G_CALLBACK(song_list_tree_view_row_activated), NULL);
+
+    button = gtk_builder_get_object(builder, "button4"); /* "next" button */
+    g_signal_connect(button, "clicked", G_CALLBACK(next_button_pressed),
+                     tree_view);
+
+    button = gtk_builder_get_object(builder, "button3"); /* "previous" button */
+    g_signal_connect(button, "clicked", G_CALLBACK(previous_button_pressed),
+                     tree_view);
 
     gtk_main();
     return 0;
