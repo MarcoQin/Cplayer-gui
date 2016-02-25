@@ -199,6 +199,11 @@ void previous_button_pressed(GtkButton *button, gpointer tree_view) {
     tree_view_scroll(tree_view, DIRECTION_UP);
 }
 
+void play_button_pressed(GtkButton *button, gpointer user_data) {
+    /* gtk_button_set_label(button, "⑈"); */
+    gtk_button_set_label(button, "▮▮");
+}
+
 int main(int argc, char *argv[]) {
     GtkBuilder *builder;
     GObject *button;
@@ -269,6 +274,10 @@ int main(int argc, char *argv[]) {
 
     button = gtk_builder_get_object(builder, "button3"); /* "previous" button */
     g_signal_connect(button, "clicked", G_CALLBACK(previous_button_pressed),
+                     tree_view);
+
+    button = gtk_builder_get_object(builder, "button1"); /* "play" button */
+    g_signal_connect(button, "clicked", G_CALLBACK(play_button_pressed),
                      tree_view);
 
     gtk_main();

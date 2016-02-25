@@ -214,7 +214,7 @@
                 <property name="layout_style">start</property>
                 <child>
                   <object class="GtkButton" id="button1">
-                    <property name="label" translatable="yes">►⑈</property>
+                    <property name="label" translatable="yes">►</property>
                     <property name="width_request">80</property>
                     <property name="height_request">20</property>
                     <property name="visible">True</property>
