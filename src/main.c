@@ -6,6 +6,7 @@
 #include <pwd.h>
 #include <sys/stat.h>
 #include "db.h"
+#include "utils.h"
 
 #define DIRECTION_DOWN 1
 #define DIRECTION_UP 0
