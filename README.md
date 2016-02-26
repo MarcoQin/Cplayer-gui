@@ -11,9 +11,10 @@ Cplayer with a GTK+ GUI.
 
 - **GTK+-3.0** `sudo apt-get install libgtk-3-dev`
 
-####Compile:
+####Compile and install:
 
-    gcc -o cplayer main.c $(pkg-config --cflags --libs gtk+-3.0)
+    make
+    sudo make install
 
 ####GThread example
 
