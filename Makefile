@@ -19,23 +19,21 @@ OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 MAIN = $(patsubst %,$(ODIR)/%,main.c)
 
-resources = $(shell $(GLIB_COMPILE_RESOURCES) --sourcedir=$(ODIR) --generate-dependencies $(ODIR)/$(NAME).gresource.xml)
+RESOURCE_NAME = $(ODIR)/$(NAME).gresource.xml
 
-$(ODIR)/$(NAME).resources.c: $(ODIR)/$(NAME).gresource.xml $(resources)
-	$(GLIB_COMPILE_RESOURCES) $(ODIR)/$(NAME).gresource.xml --target=$@ --sourcedir=$(ODIR) --generate-source
-
+RESOURCE_TARGET = $(ODIR)/$(NAME).resources.c
 
 $(ODIR)/%.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(NAME): $(OBJ)
-	gcc -o src/$@ $(MAIN) $^ $(CFLAGS) $(LIBS)
-	mv src/$@ $@
+	$(GLIB_COMPILE_RESOURCES) $(RESOURCE_NAME) --target=$(RESOURCE_TARGET) --sourcedir=$(ODIR) --generate-source
+	$(CC) -o $@ $(RESOURCE_TARGET) $(MAIN) $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o $(NAME)
+	rm -f $(ODIR)/*.o $(NAME) $(RESOURCE_TARGET)
 
 install:
 	cp $(NAME) /usr/local/bin/
