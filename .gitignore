@@ -31,3 +31,11 @@
 # Debug files
 *.dSYM/
 cplayer
+src/cplayer.resources.c
+
+src/main_or.c
+
+thread_example
+src/cplayer.ui~
+thread_test.c
+
