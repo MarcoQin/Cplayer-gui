@@ -12,6 +12,8 @@ LIBS=`pkg-config --libs gtk+-3.0` -lpthread -ldl
 
 
 _OBJ = db.o\
+	player_core.o\
+	popen2.o\
 	utils.o\
 	sqlite3/sqlite3.o
 
