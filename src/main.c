@@ -32,10 +32,12 @@ void add_song(gpointer file_path, gpointer liststore) {
     GtkTreeIter iter;
     gint n_rows = gtk_tree_model_iter_n_children(liststore, NULL);
     g_print("n_rows%d\n", n_rows);
-    /* TODO: insert into sqlite3 database */
     gtk_list_store_append(liststore, &iter);
+    char *file_name = extract_file_name((char *)file_path);
+    gint id = db_insert_song(file_name, (char *)file_path);
     gtk_list_store_set(liststore, &iter, COL_INDEX, (n_rows + 1), COL_NAME,
-                       (gchar *)file_path, COL_ID, (n_rows + 1), -1);
+                       (gchar *)file_name, COL_PATH, (gchar *)file_path, COL_ID, id, -1);
+    free(file_name);
 }
 
 void file_activated(GtkFileChooser *chooser, gpointer liststore) {
@@ -56,13 +58,13 @@ void file_chooser_ok_button(GtkButton *button, GObject *user_data) {
     gtk_widget_hide(GTK_WIDGET(file_chooser));
 }
 
-void selection_foreach_fuc(GtkTreeModel *model, GtkTreePath *path,
+void selection_remove_foreach_fuc(GtkTreeModel *model, GtkTreePath *path,
                            GtkTreeIter *iter, GList **rowref_list) {
     gint id;
     gtk_tree_model_get(model, iter, COL_ID, &id, -1);
     g_print("id is %d\n", id);
     if (id != 0) {
-        /* TODO: remove from sqlite3 database */
+        db_delete_song(id);
         GtkTreeRowReference *rowref;
         rowref = gtk_tree_row_reference_new(model, path);
         *rowref_list = g_list_append(*rowref_list, rowref);
@@ -83,7 +85,7 @@ void remove_files(GtkButton *button, gpointer *tree_view) {
     GList *rr_list = NULL; /* list of GtkTreeRowReferences to remove */
     GList *node;
     gtk_tree_selection_selected_foreach(
-        selection, (GtkTreeSelectionForeachFunc)selection_foreach_fuc,
+        selection, (GtkTreeSelectionForeachFunc)selection_remove_foreach_fuc,
         &rr_list);
     for (node = rr_list; node != NULL; node = node->next) {
         GtkTreePath *path;

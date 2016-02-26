@@ -206,27 +206,3 @@ int db_load_songs(char ***result, int *nrow, int *ncolumn, char **pzErrmsg) {
     return sqlite3_get_table(db, "select id, name, path from songs", result, nrow,
                              ncolumn, pzErrmsg);
 }
-
-int loading_choices(char ***choices) {
-    char **result = 0;
-    int i, j, nrow, ncol, index, rc;
-    char *errmsg;
-    char *dot = ".";
-    char **real_choices = 0;
-    rc = db_load_songs(&result, &nrow, &ncol, &errmsg);
-    if (rc == 0) {
-        real_choices = (char **)malloc((nrow + 1) * sizeof(char *));
-        index = ncol;
-        for (i = 0; i < nrow; i++) {
-            for (j = 0; j < ncol; j++) {
-                if (j == 1) {
-                    char *r = merge_str(result[index - 1], dot, result[index]);
-                    real_choices[i] = r;
-                }
-                index++;
-            }
-        }
-    }
-    *choices = real_choices;
-    return nrow;
-}
