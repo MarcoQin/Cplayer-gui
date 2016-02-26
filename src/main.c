@@ -1,4 +1,11 @@
 #include <gtk/gtk.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <pwd.h>
+#include <sys/stat.h>
+#include "db.h"
 
 #define DIRECTION_DOWN 1
 #define DIRECTION_UP 0
@@ -191,6 +198,35 @@ void tree_view_scroll(gpointer tree_view, gint direction) {
     gtk_tree_path_free(path);
 }
 
+void init_tree_view_data(gpointer liststore) {
+    char **result = 0;
+    int i, j, nrow, ncol, index, rc;
+    char *errmsg;
+    gint id;
+    gchar *name;
+    gchar *path;
+    GtkTreeIter iter;
+    rc = db_load_songs(&result, &nrow, &ncol, &errmsg);
+    if (rc == 0) {
+        index = ncol;
+        for (i = 0; i < nrow; i++) {
+            for (j = 0; j < ncol; j++) {
+                if (j == 0)
+                    id = atoi(result[index]);
+                if (j == 1)
+                    name = result[index];
+                if (j == 2)
+                    path = result[index];
+                index ++;
+            }
+            gtk_list_store_append(GTK_LIST_STORE(liststore), &iter);
+            gtk_list_store_set(GTK_LIST_STORE(liststore), &iter, COL_ID, id, COL_NAME, name, COL_PATH, path, COL_INDEX, (i+1), -1);
+            g_print("id: %d, name: %s, path: %s\n", id, name, path);
+        }
+        sqlite3_free_table(result);
+    }
+}
+
 void next_button_pressed(GtkButton *button, gpointer tree_view) {
     tree_view_scroll(tree_view, DIRECTION_DOWN);
 }
@@ -214,7 +250,9 @@ int main(int argc, char *argv[]) {
     GObject *slider_adjustment;
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
-    gtk_builder_add_from_file(builder, "cplayer.ui", NULL);
+    /* gtk_builder_add_from_file(builder, "cplayer.ui", NULL); */
+    gtk_builder_add_from_resource(builder, "/src/cplayer.ui", NULL);
+    /* gtk_builder_add_from_resource(builder, "/home/marcoqin/marco/code/Cplayer-gui/src/cplayer.ui", NULL); */
     window = gtk_builder_get_object(builder, "window1"); /* main window */
 
     tree_view = gtk_builder_get_object(builder, "treeview1");
@@ -280,6 +318,29 @@ int main(int argc, char *argv[]) {
     g_signal_connect(button, "clicked", G_CALLBACK(play_button_pressed),
                      tree_view);
 
+    db_enable();
+
+    const char *homedir;
+    if ((homedir = getenv("HOME")) == NULL) {
+        homedir = getpwuid(getuid())->pw_dir;
+    }
+    char *db_path = merge_str((char *)homedir, "/.cplayer/", "songs.db");
+    char *main_path = merge_str((char *)homedir, "/.cplayer", "/");
+
+    if (access(db_path, F_OK) == -1) {
+        // file doesn't exist, create one
+        int status = mkdir(main_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    }
+    int rc = db_init(db_path);
+    free(db_path);
+    free(main_path);
+    if (rc != 0) {
+        fprintf(stderr, "Fail to init db.\n");
+        exit(1);
+    }
+    init_tree_view_data(liststore);
     gtk_main();
+    db_close();
+    db_disable();
     return 0;
 }
