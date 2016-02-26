@@ -8,16 +8,15 @@
 #include "player_core.h"
 #include "utils.h"
 #include "db.h"
-#include <cdk.h>
 #include "popen2.h"
 #include <signal.h>
 
-int status = 0;   /* play status */
+int playing_status = 0;   /* play status */
 int alive = KILL; /* pipe alive false */
 char buf[512];
 char *FIFO = "/tmp/my_fifo";
 int fd;
-pid_t pid;
+pid_t mplayer_pid;
 int infp, outfp;
 
 void init_player(char *path) {
@@ -25,16 +24,16 @@ void init_player(char *path) {
     char *base = "mplayer -slave -quiet -input file=/tmp/my_fifo \"";
     char *tail = "\" < /dev/null 2>&1 &";
     char *result = merge_str(base, path, tail);
-    pid = popen2(result, &infp, &outfp);
-    pid += 2; // handle subprocess
-    refresh();
-    status = PLAYING; /* playing status */
+    mplayer_pid = popen2(result, &infp, &outfp);
+    /* mplayer_pid += 2; // handle subprocess */
+    mplayer_pid += 1; // handle subprocess
+    playing_status = PLAYING; /* playing status */
     alive = ALIVE;
     free(result);
 }
 
 int is_alive(void) {
-    int code = kill(pid, 0);
+    int code = kill(mplayer_pid, 0);
     return code;
 }
 
@@ -49,11 +48,10 @@ void load_song(int id) {
         write(fd, s, strlen(s));
         close(fd);
         free(s);
-        status = PLAYING; /* playing status */
+        playing_status = PLAYING; /* playing status */
     } else {
         init_player(path);
     }
-    refresh();
 }
 
 void stop_song() {
@@ -63,7 +61,7 @@ void stop_song() {
         write(fd, s, strlen(s));
         close(fd);
     }
-    status = STOP; /* playing status */
+    playing_status = STOP; /* playing status */
 }
 
 void pause_song() {
@@ -72,12 +70,12 @@ void pause_song() {
         fd = open(FIFO, O_WRONLY);
         write(fd, s, strlen(s));
         close(fd);
-        status = status == PAUSE ? PLAYING : PAUSE; /* playing status */
+        playing_status = playing_status == PAUSE ? PLAYING : PAUSE; /* playing status */
     }
 }
 
 void seek(char *seconds) {
-    if (alive == ALIVE && is_alive() == ALIVE && status == PLAYING) {
+    if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING) {
         char *base = "seek ";
         char *tail = "\n";
         char *s = merge_str(base, seconds, tail);
@@ -89,9 +87,9 @@ void seek(char *seconds) {
 }
 
 void free_player() {
-    if (status != STOP && is_alive() == ALIVE)
+    if (playing_status != STOP && is_alive() == ALIVE)
         stop_song();
-    status = STOP;
+    playing_status = STOP;
     alive = KILL;
-    pclose2(pid);
+    pclose2(mplayer_pid);
 }

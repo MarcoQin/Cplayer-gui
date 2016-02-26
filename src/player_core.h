@@ -5,8 +5,8 @@
 #define PAUSE 2
 #define ALIVE 0
 #define KILL 1
-extern int pid;
-extern int status;
+extern int mplayer_pid;
+extern int playing_status;
 void init_player(char *path);
 void load_song(int id);
 void pause_song();

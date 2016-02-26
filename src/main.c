@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include "db.h"
 #include "utils.h"
+#include "player_core.h"
 
 #define DIRECTION_DOWN 1
 #define DIRECTION_UP 0
@@ -113,6 +114,9 @@ void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     g_print("slider value: %f\n", value);
 }
 
+void update_play_button_label(GtkButton *button, gchar *label) {
+}
+
 void song_list_tree_view_row_activated(GtkTreeView *tree_view,
                                        GtkTreePath *path,
                                        GtkTreeViewColumn *column,
@@ -129,6 +133,8 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
         g_print("id: %d\n", id);
         g_print("name: %s\n", name);
         g_print("path: %s\n", file_path);
+        load_song(id);
+        g_print("pid: %d\n", mplayer_pid);
         g_free(name);
         g_free(file_path);
     }
@@ -345,5 +351,6 @@ int main(int argc, char *argv[]) {
     gtk_main();
     db_close();
     db_disable();
+    free_player();
     return 0;
 }
