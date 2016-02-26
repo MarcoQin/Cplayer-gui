@@ -23,6 +23,10 @@ RESOURCE_NAME = $(ODIR)/$(NAME).gresource.xml
 
 RESOURCE_TARGET = $(ODIR)/$(NAME).resources.c
 
+ICON = $(ODIR)/$(NAME).png
+
+DESKTOP = $(ODIR)/$(NAME).desktop
+
 $(ODIR)/%.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
 
@@ -36,7 +40,13 @@ clean:
 	rm -f $(ODIR)/*.o $(NAME) $(RESOURCE_TARGET)
 
 install:
-	cp $(NAME) /usr/local/bin/
+	cp $(NAME) /usr/bin/
+	xdg-icon-resource install --novendor --size 32 $(ICON) $(NAME)
+	xdg-icon-resource install --novendor --size 48 $(ICON) $(NAME)
+	xdg-icon-resource install --novendor --size 64 $(ICON) $(NAME)
+	xdg-icon-resource install --novendor --size 128 $(ICON) $(NAME)
+	cp $(DESKTOP) /usr/share/applications
 
 uninstall:
-	rm -r /usr/local/bin/$(NAME)
+	rm -r /usr/bin/$(NAME)
+	rm -r /usr/share/applications/$(DESKTOP)
