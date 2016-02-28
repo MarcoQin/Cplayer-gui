@@ -114,13 +114,18 @@ void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     g_print("slider value: %f\n", value);
 }
 
-void update_play_button_label(GtkButton *button, gchar *label) {
+void update_play_button_label(GtkButton *button) {
+    if (playing_status == PLAYING) {
+        gtk_button_set_label(button, "▮▮");
+    } else if (playing_status == PAUSE || playing_status == STOP) {
+        gtk_button_set_label(button, "►");
+    }
 }
 
 void song_list_tree_view_row_activated(GtkTreeView *tree_view,
                                        GtkTreePath *path,
                                        GtkTreeViewColumn *column,
-                                       gpointer user_data) {
+                                       gpointer play_button) {
     GtkTreeModel *model = gtk_tree_view_get_model(tree_view);
     GtkTreeIter iter;
 
@@ -134,6 +139,7 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
         g_print("name: %s\n", name);
         g_print("path: %s\n", file_path);
         load_song(id);
+        update_play_button_label(GTK_BUTTON(play_button));
         g_print("pid: %d\n", mplayer_pid);
         g_free(name);
         g_free(file_path);
@@ -195,6 +201,7 @@ void tree_view_scroll(gpointer tree_view, gint direction) {
             gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name,
                                COL_PATH, &file_path, -1);
 
+            load_song(id);
             g_print("id: %d\n", id);
             g_print("name: %s\n", name);
             g_print("path: %s\n", file_path);
@@ -236,17 +243,30 @@ void init_tree_view_data(gpointer liststore) {
     }
 }
 
-void next_button_pressed(GtkButton *button, gpointer tree_view) {
-    tree_view_scroll(tree_view, DIRECTION_DOWN);
+void next_button_pressed(GtkButton *button, gpointer user_data) {
+    GObject *tree_view = g_object_get_data(user_data, "tree_view");
+    GObject *play_button = g_object_get_data(user_data, "play_button");
+    tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_DOWN);
+    update_play_button_label(GTK_BUTTON(play_button));
 }
 
-void previous_button_pressed(GtkButton *button, gpointer tree_view) {
-    tree_view_scroll(tree_view, DIRECTION_UP);
+void previous_button_pressed(GtkButton *button, gpointer user_data) {
+    GObject *tree_view = g_object_get_data(user_data, "tree_view");
+    GObject *play_button = g_object_get_data(user_data, "play_button");
+    tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_UP);
+    update_play_button_label(GTK_BUTTON(play_button));
 }
 
 void play_button_pressed(GtkButton *button, gpointer user_data) {
-    /* gtk_button_set_label(button, "⑈"); */
-    gtk_button_set_label(button, "▮▮");
+    if (playing_status == PLAYING || playing_status == PAUSE) {
+        pause_song();
+        update_play_button_label(button);
+    }
+}
+
+void stop_button_pressed(GtkButton *button, gpointer play_button) {
+    stop_song();
+    update_play_button_label(play_button);
 }
 
 int main(int argc, char *argv[]) {
@@ -298,10 +318,10 @@ int main(int argc, char *argv[]) {
 
     button = gtk_builder_get_object(
         builder, "button7"); /* filechooserdialog1 "ok" button */
-    GtkWidget *w = gtk_label_new("this is a new lable");
-    g_object_set_data(G_OBJECT(w), "file_chooser", file_chooser_dialog);
-    g_object_set_data(G_OBJECT(w), "liststore", liststore);
-    g_signal_connect(button, "clicked", G_CALLBACK(file_chooser_ok_button), w);
+    GtkWidget *user_data = gtk_label_new("this is a new lable");
+    g_object_set_data(G_OBJECT(user_data), "file_chooser", file_chooser_dialog);
+    g_object_set_data(G_OBJECT(user_data), "liststore", liststore);
+    g_signal_connect(button, "clicked", G_CALLBACK(file_chooser_ok_button), user_data);
 
     button = gtk_builder_get_object(builder,
                                     "button6"); /* "-"(remove files) button */
@@ -312,20 +332,29 @@ int main(int argc, char *argv[]) {
                      G_CALLBACK(slider_value_changed), NULL);
     gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 35.0);
 
-    g_signal_connect(tree_view, "row-activated",
-                     G_CALLBACK(song_list_tree_view_row_activated), NULL);
+    GObject *play_button = gtk_builder_get_object(builder, "button1"); /* "play" button */
 
+    g_signal_connect(tree_view, "row-activated",
+                     G_CALLBACK(song_list_tree_view_row_activated), play_button);
+
+    g_object_set_data(G_OBJECT(user_data), "tree_view", tree_view);
+    g_object_set_data(G_OBJECT(user_data), "play_button", play_button);
     button = gtk_builder_get_object(builder, "button4"); /* "next" button */
     g_signal_connect(button, "clicked", G_CALLBACK(next_button_pressed),
-                     tree_view);
+                     user_data);
 
     button = gtk_builder_get_object(builder, "button3"); /* "previous" button */
     g_signal_connect(button, "clicked", G_CALLBACK(previous_button_pressed),
-                     tree_view);
+                     user_data);
 
     button = gtk_builder_get_object(builder, "button1"); /* "play" button */
     g_signal_connect(button, "clicked", G_CALLBACK(play_button_pressed),
                      tree_view);
+
+    button = gtk_builder_get_object(builder, "button2"); /* "stop" button */
+    g_signal_connect(button, "clicked", G_CALLBACK(stop_button_pressed),
+                     play_button);
+
 
     db_enable();
 
