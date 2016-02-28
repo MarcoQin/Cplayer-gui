@@ -23,16 +23,12 @@ void hide_file_dialog(GtkButton *button, gpointer file_chooser_dialog) {
 }
 
 void hide_file_dialog_2(GtkDialog *arg0, gpointer file_chooser_dialog) {
-    g_print("escape pressed");
     gtk_widget_hide(GTK_WIDGET(file_chooser_dialog));
-    g_print("escape pressed end");
 }
 
 void add_song(gpointer file_path, gpointer liststore) {
-    g_print("%s\n", (char *)file_path);
     GtkTreeIter iter;
     gint n_rows = gtk_tree_model_iter_n_children(liststore, NULL);
-    g_print("n_rows%d\n", n_rows);
     gtk_list_store_append(liststore, &iter);
     char *file_name = extract_file_name((char *)file_path);
     gint id = db_insert_song(file_name, (char *)file_path);
@@ -63,7 +59,6 @@ void selection_remove_foreach_fuc(GtkTreeModel *model, GtkTreePath *path,
                            GtkTreeIter *iter, GList **rowref_list) {
     gint id;
     gtk_tree_model_get(model, iter, COL_ID, &id, -1);
-    g_print("id is %d\n", id);
     if (id != 0) {
         db_delete_song(id);
         GtkTreeRowReference *rowref;
@@ -122,10 +117,14 @@ void update_play_button_label(GtkButton *button) {
     }
 }
 
+void update_play_state_label(GtkLabel *label, gchar *song_name) {
+    gtk_label_set_text(GTK_LABEL(label), song_name);
+}
+
 void song_list_tree_view_row_activated(GtkTreeView *tree_view,
                                        GtkTreePath *path,
                                        GtkTreeViewColumn *column,
-                                       gpointer play_button) {
+                                       gpointer user_data) {
     GtkTreeModel *model = gtk_tree_view_get_model(tree_view);
     GtkTreeIter iter;
 
@@ -135,18 +134,17 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
         gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name, COL_PATH,
                            &file_path, -1);
 
-        g_print("id: %d\n", id);
-        g_print("name: %s\n", name);
-        g_print("path: %s\n", file_path);
+        GObject *play_button = g_object_get_data(user_data, "play_button");
+        GObject *state_label = g_object_get_data(user_data, "state_label");
         load_song(id);
         update_play_button_label(GTK_BUTTON(play_button));
-        g_print("pid: %d\n", mplayer_pid);
+        update_play_state_label(GTK_LABEL(state_label), name);
         g_free(name);
         g_free(file_path);
     }
 }
 
-void tree_view_scroll(gpointer tree_view, gint direction) {
+void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
     GtkTreePath *path;
     GtkTreeIter iter;
     GtkTreeViewColumn *col;
@@ -202,9 +200,10 @@ void tree_view_scroll(gpointer tree_view, gint direction) {
                                COL_PATH, &file_path, -1);
 
             load_song(id);
-            g_print("id: %d\n", id);
-            g_print("name: %s\n", name);
-            g_print("path: %s\n", file_path);
+            GObject *play_button = g_object_get_data(user_data, "play_button");
+            GObject *state_label = g_object_get_data(user_data, "state_label");
+            update_play_button_label(GTK_BUTTON(play_button));
+            update_play_state_label(GTK_LABEL(state_label), name);
             g_free(name);
             g_free(file_path);
             /* end */
@@ -237,7 +236,6 @@ void init_tree_view_data(gpointer liststore) {
             }
             gtk_list_store_append(GTK_LIST_STORE(liststore), &iter);
             gtk_list_store_set(GTK_LIST_STORE(liststore), &iter, COL_ID, id, COL_NAME, name, COL_PATH, path, COL_INDEX, (i+1), -1);
-            g_print("id: %d, name: %s, path: %s\n", id, name, path);
         }
         sqlite3_free_table(result);
     }
@@ -245,16 +243,12 @@ void init_tree_view_data(gpointer liststore) {
 
 void next_button_pressed(GtkButton *button, gpointer user_data) {
     GObject *tree_view = g_object_get_data(user_data, "tree_view");
-    GObject *play_button = g_object_get_data(user_data, "play_button");
-    tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_DOWN);
-    update_play_button_label(GTK_BUTTON(play_button));
+    tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_DOWN, user_data);
 }
 
 void previous_button_pressed(GtkButton *button, gpointer user_data) {
     GObject *tree_view = g_object_get_data(user_data, "tree_view");
-    GObject *play_button = g_object_get_data(user_data, "play_button");
-    tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_UP);
-    update_play_button_label(GTK_BUTTON(play_button));
+    tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_UP, user_data);
 }
 
 void play_button_pressed(GtkButton *button, gpointer user_data) {
@@ -277,6 +271,7 @@ int main(int argc, char *argv[]) {
     GObject *file_chooser_dialog;
     GObject *tree_view;
     GObject *slider_adjustment;
+    GObject *state_label;
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
     /* gtk_builder_add_from_file(builder, "cplayer.ui", NULL); */
@@ -290,11 +285,11 @@ int main(int argc, char *argv[]) {
 
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-    file_chooser_dialog = gtk_builder_get_object(
-        builder, "filechooserdialog1"); /* file chooser dialog */
+    file_chooser_dialog = gtk_builder_get_object( builder, "filechooserdialog1"); /* file chooser dialog */
 
-    button =
-        gtk_builder_get_object(builder, "button5"); /* "+"(add files) button */
+    state_label = gtk_builder_get_object(builder, "label1"); /* play state label */
+
+    button = gtk_builder_get_object(builder, "button5"); /* "+"(add files) button */
     g_signal_connect(button, "clicked", G_CALLBACK(show_file_dialog),
                      file_chooser_dialog);
 
@@ -334,11 +329,12 @@ int main(int argc, char *argv[]) {
 
     GObject *play_button = gtk_builder_get_object(builder, "button1"); /* "play" button */
 
+    g_object_set_data(G_OBJECT(user_data), "play_button", play_button);
+    g_object_set_data(G_OBJECT(user_data), "state_label", state_label);
     g_signal_connect(tree_view, "row-activated",
-                     G_CALLBACK(song_list_tree_view_row_activated), play_button);
+                     G_CALLBACK(song_list_tree_view_row_activated), user_data);
 
     g_object_set_data(G_OBJECT(user_data), "tree_view", tree_view);
-    g_object_set_data(G_OBJECT(user_data), "play_button", play_button);
     button = gtk_builder_get_object(builder, "button4"); /* "next" button */
     g_signal_connect(button, "clicked", G_CALLBACK(next_button_pressed),
                      user_data);
