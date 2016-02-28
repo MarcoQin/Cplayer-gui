@@ -22,11 +22,12 @@ int infp, outfp;
 void init_player(char *path) {
     mkfifo(FIFO, 0666);
     char *base = "mplayer -slave -quiet -input file=/tmp/my_fifo \"";
-    char *tail = "\" < /dev/null 2>&1 &";
+    /* char *tail = "\" < /dev/null 2>&1 &"; */
+    char *tail = "\"";
     char *result = merge_str(base, path, tail);
     mplayer_pid = popen2(result, &infp, &outfp);
-    /* mplayer_pid += 2; // handle subprocess */
-    mplayer_pid += 1; // handle subprocess
+    mplayer_pid += 2; // handle subprocess
+    /* mplayer_pid += 1; // handle subprocess */
     playing_status = PLAYING; /* playing status */
     alive = ALIVE;
     free(result);
@@ -71,6 +72,24 @@ void pause_song() {
         write(fd, s, strlen(s));
         close(fd);
         playing_status = playing_status == PAUSE ? PLAYING : PAUSE; /* playing status */
+    }
+}
+
+void get_time_percent_pos() {
+    if (alive == ALIVE && is_alive() == ALIVE) {
+        char *s = "get_percent_pos\n";
+        fd = open(FIFO, O_WRONLY);
+        write(fd, s, strlen(s));
+        close(fd);
+    }
+}
+
+void get_time_length() {
+    if (alive == ALIVE && is_alive() == ALIVE) {
+        char *s = "get_time_length\n";
+        fd = open(FIFO, O_WRONLY);
+        write(fd, s, strlen(s));
+        close(fd);
     }
 }
 
