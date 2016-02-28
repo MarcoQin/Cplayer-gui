@@ -11,6 +11,7 @@
 
 #define DIRECTION_DOWN 1
 #define DIRECTION_UP 0
+#define DIRECTION_CURRENT 2 /* not move the cursor, just play first song */
 
 enum { COL_INDEX = 0, COL_ID, COL_NAME, COL_PATH, N_COLUMNS };
 
@@ -76,8 +77,7 @@ gboolean re_index_func(GtkTreeModel *model, GtkTreePath *path,
 
 void remove_files(GtkButton *button, gpointer *tree_view) {
     GtkTreeModel *liststore = gtk_tree_view_get_model(GTK_TREE_VIEW(tree_view));
-    GtkTreeSelection *selection =
-        gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view));
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(tree_view));
     GList *rr_list = NULL; /* list of GtkTreeRowReferences to remove */
     GList *node;
     gtk_tree_selection_selected_foreach(
@@ -157,7 +157,7 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
 
     /* App start, nothing is selected */
     if (path == NULL && n_rows != 0) {
-        if (direction == DIRECTION_DOWN) {
+        if (direction == DIRECTION_DOWN || direction == DIRECTION_CURRENT) {
             /* first node's path */
             gtk_tree_model_get_iter_first(model, &iter);
             path = gtk_tree_model_get_path(model, &iter);
@@ -172,7 +172,7 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
         if (first != TRUE) {
             if (direction == DIRECTION_DOWN) {
                 gtk_tree_path_next(path);
-            } else {
+            } else if (direction == DIRECTION_UP) {
                 gboolean result = gtk_tree_path_prev(path);
                 if (result != TRUE) {
                     path = gtk_tree_path_new_from_indices(n_rows - 1, -1);
@@ -255,6 +255,9 @@ void play_button_pressed(GtkButton *button, gpointer user_data) {
     if (playing_status == PLAYING || playing_status == PAUSE) {
         pause_song();
         update_play_button_label(button);
+    } else {  /* row selected or no row selected */
+        GObject *tree_view = g_object_get_data(user_data, "tree_view");
+        tree_view_scroll(GTK_TREE_VIEW(tree_view), DIRECTION_CURRENT, user_data);
     }
 }
 
@@ -345,7 +348,7 @@ int main(int argc, char *argv[]) {
 
     button = gtk_builder_get_object(builder, "button1"); /* "play" button */
     g_signal_connect(button, "clicked", G_CALLBACK(play_button_pressed),
-                     tree_view);
+                     user_data);
 
     button = gtk_builder_get_object(builder, "button2"); /* "stop" button */
     g_signal_connect(button, "clicked", G_CALLBACK(stop_button_pressed),
