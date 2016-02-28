@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -14,6 +15,108 @@
 #define DIRECTION_CURRENT 2 /* not move the cursor, just play first song */
 
 enum { COL_INDEX = 0, COL_ID, COL_NAME, COL_PATH, N_COLUMNS };
+
+gpointer global_signal_handle_tree_view;
+gpointer global_signal_handel_user_data;
+
+pid_t parent_pid, child_pid, wpid;
+
+void watch_dog();
+void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data);
+
+void stopping(int signum) {
+    if (playing_status != STOP) {
+        tree_view_scroll(global_signal_handle_tree_view, DIRECTION_DOWN, global_signal_handel_user_data);
+        watch_dog();
+    }
+}
+
+void watch_dog() {
+    if (child_pid) {
+        kill(child_pid, SIGKILL);
+    }
+    child_pid = fork();
+    if (child_pid < 0)
+        exit(1);
+    else if (child_pid == 0) {
+        // child process
+        int code = 0;
+        parent_pid = getppid();
+        sleep(2);
+        while (1) {
+            code = kill(mplayer_pid, 0);
+            if (code == 0) { // alive
+                sleep(2);
+            } else {
+                kill(parent_pid, SIGUSR1); // custom signal
+                break;
+            }
+        }
+        exit(1);
+    } else {
+        // parent process
+        signal(SIGCHLD, SIG_IGN);
+        g_print("parent_pid: %d\n", parent_pid);
+        g_print("child_pid: %d\n", child_pid);
+        g_print("mplayer_pid: %d\n", mplayer_pid);
+        /* char buffer[1024]; */
+        /* get_time_pos(); */
+        /* while(1) { */
+            /* int nbytes = read(outfp, buffer, sizeof(buffer)); */
+            /* int i = index_of(buffer, "ANS"); */
+            /* if(i != -1) { */
+                /* while(buffer[i] != '\n') { */
+                    /* g_print("%c", buffer[i]); */
+                    /* i++; */
+                /* } */
+                /* break; */
+            /* } */
+        /* } */
+    }
+}
+
+static gpointer thread_func(gpointer data) {
+    char buffer[1024];
+    int pos = 0;
+    int i, percent_pos;
+    percent_pos = strlen("ANS_PERCENT_POSITION=");
+    int nbytes;
+    int num_start;
+    while(1) {
+        if (playing_status == STOP) {
+            gtk_adjustment_set_value(GTK_ADJUSTMENT(data), 0);
+        }
+        if (outfp != 0) {
+            if (playing_status != STOP || playing_status != PAUSE) {
+                get_time_percent_pos();
+                while(1) {
+                    nbytes = read(outfp, buffer, sizeof(buffer));
+                    g_print("n_bytes: %d\n", nbytes);
+                    i = index_of(buffer, "ANS");
+                    if(i != -1) {
+                        /* i += 21; */
+                        i += percent_pos;
+                        char pos_num[nbytes - i];
+                        num_start = 0;
+                        while (buffer[i] != '\n') {
+                            pos_num[num_start]  = buffer[i];
+                            i++;
+                            num_start ++;
+                        }
+                        pos = atoi(pos_num);
+                        break;
+                    }
+                }
+                gtk_adjustment_set_value(GTK_ADJUSTMENT(data), pos);
+                g_usleep(200000);
+            }
+        } else {
+            g_usleep(200000);
+        }
+    }
+
+    return (NULL);
+}
 
 void show_file_dialog(GtkButton *button, gpointer file_chooser_dialog) {
     gtk_widget_show_all(GTK_WIDGET(file_chooser_dialog));
@@ -137,6 +240,7 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
         GObject *play_button = g_object_get_data(user_data, "play_button");
         GObject *state_label = g_object_get_data(user_data, "state_label");
         load_song(id);
+        watch_dog();
         update_play_button_label(GTK_BUTTON(play_button));
         update_play_state_label(GTK_LABEL(state_label), name);
         g_free(name);
@@ -200,6 +304,7 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
                                COL_PATH, &file_path, -1);
 
             load_song(id);
+            watch_dog();
             GObject *play_button = g_object_get_data(user_data, "play_button");
             GObject *state_label = g_object_get_data(user_data, "state_label");
             update_play_button_label(GTK_BUTTON(play_button));
@@ -376,6 +481,23 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     init_tree_view_data(liststore);
+
+    /* handel signal */
+    global_signal_handle_tree_view = tree_view;
+    global_signal_handel_user_data = user_data;
+    signal(SIGUSR1, stopping);
+    /* end */
+
+    /* thread */
+    GError *error = NULL;
+    GThread *thread;
+    thread = g_thread_try_new("thread1", thread_func, (gpointer)slider_adjustment, &error);
+    if (!thread) {
+        g_print("Error: %s\n", error->message);
+        return (-1);
+    }
+    /* end thread */
+
     gtk_main();
     db_close();
     db_disable();
