@@ -188,7 +188,7 @@
             <property name="width_request">147</property>
             <property name="visible">True</property>
             <property name="can_focus">False</property>
-            <property name="label" translatable="yes">YUI-again.wavYUI-again.wavYUI-again.wavYUI-again.wav</property>
+            <property name="label" translatable="yes">No Song Choosed</property>
             <property name="use_markup">True</property>
             <property name="ellipsize">middle</property>
             <property name="max_width_chars">10</property>
