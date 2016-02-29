@@ -18,6 +18,7 @@ enum { COL_INDEX = 0, COL_ID, COL_NAME, COL_PATH, N_COLUMNS };
 
 gpointer global_signal_handle_tree_view;
 gpointer global_signal_handel_user_data;
+gint global_slider_value;
 
 pid_t parent_pid, child_pid, wpid;
 
@@ -26,6 +27,7 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data);
 
 void stopping(int signum) {
     if (playing_status != STOP) {
+        outfp = 0;
         tree_view_scroll(global_signal_handle_tree_view, DIRECTION_DOWN, global_signal_handel_user_data);
         watch_dog();
     }
@@ -42,11 +44,11 @@ void watch_dog() {
         // child process
         int code = 0;
         parent_pid = getppid();
-        sleep(2);
+        usleep(100000);
         while (1) {
             code = kill(mplayer_pid, 0);
             if (code == 0) { // alive
-                sleep(2);
+                usleep(50000);
             } else {
                 kill(parent_pid, SIGUSR1); // custom signal
                 break;
@@ -56,22 +58,6 @@ void watch_dog() {
     } else {
         // parent process
         signal(SIGCHLD, SIG_IGN);
-        g_print("parent_pid: %d\n", parent_pid);
-        g_print("child_pid: %d\n", child_pid);
-        g_print("mplayer_pid: %d\n", mplayer_pid);
-        /* char buffer[1024]; */
-        /* get_time_pos(); */
-        /* while(1) { */
-            /* int nbytes = read(outfp, buffer, sizeof(buffer)); */
-            /* int i = index_of(buffer, "ANS"); */
-            /* if(i != -1) { */
-                /* while(buffer[i] != '\n') { */
-                    /* g_print("%c", buffer[i]); */
-                    /* i++; */
-                /* } */
-                /* break; */
-            /* } */
-        /* } */
     }
 }
 
@@ -80,8 +66,8 @@ static gpointer thread_func(gpointer user_data) {
     GObject *time_label = g_object_get_data(user_data, "time_label");
     char buffer[1024];
     int percent_pos = 0;
-    int i, percent_pos_length;
-    percent_pos_length = strlen("ANS_PERCENT_POSITION=");
+    int i;
+    int percent_pos_length = strlen("ANS_PERCENT_POSITION=");
     int ans_length = strlen("ANS_LENGTH=");
     int ans_time_position = strlen("ANS_TIME_POSITION=");
     int nbytes;
@@ -92,77 +78,95 @@ static gpointer thread_func(gpointer user_data) {
     while(1) {
         if (playing_status == STOP) {
             gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 0);
+            global_slider_value = 0;
             gtk_label_set_text(GTK_LABEL(time_label), "00:00 / 00:00");
         }
         if (outfp != 0) {
-            if (playing_status != STOP || playing_status != PAUSE) {
+            if (playing_status == PLAYING) {
                 /* current time pos */
-                get_time_pos();
-                while(1) {
-                    nbytes = read(outfp, buffer, sizeof(buffer));
-                    g_print("n_bytes: %d\n", nbytes);
-                    i = index_of(buffer, "ANS");
-                    if(i != -1) {
-                        i += ans_time_position;
-                        char current_pos_num[nbytes - i];
-                        num_start = 0;
-                        while (buffer[i] != '\n') {
-                            current_pos_num[num_start]  = buffer[i];
-                            i++;
-                            num_start ++;
+                if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
+                    get_time_pos();
+                    while(1) {
+                        nbytes = read(outfp, buffer, sizeof(buffer));
+                        i = index_of(buffer, "Exit");
+                        if (i != -1) {
+                            break;
                         }
-                        current_pos = atof(current_pos_num);
-                        g_print("current_pos: %f\n", current_pos);
-                        break;
-                    }
-                }
-                /* end */
-                /* get time percent pos */
-                get_time_percent_pos();
-                while(1) {
-                    nbytes = read(outfp, buffer, sizeof(buffer));
-                    g_print("n_bytes: %d\n", nbytes);
-                    i = index_of(buffer, "ANS");
-                    if(i != -1) {
-                        i += percent_pos_length;
-                        char pos_num[nbytes - i];
-                        num_start = 0;
-                        while (buffer[i] != '\n') {
-                            pos_num[num_start]  = buffer[i];
-                            i++;
-                            num_start ++;
+                        i = index_of(buffer, "ANS");
+                        if(i != -1) {
+                            i += ans_time_position;
+                            char current_pos_num[nbytes - i];
+                            num_start = 0;
+                            while (buffer[i] != '\n') {
+                                current_pos_num[num_start]  = buffer[i];
+                                i++;
+                                num_start ++;
+                            }
+                            current_pos = atof(current_pos_num);
+                            break;
                         }
-                        percent_pos = atoi(pos_num);
-                        break;
                     }
+                    /* end */
                 }
-                /* end */
-                /* get time length */
-                get_time_length();
-                while(1) {
-                    nbytes = read(outfp, buffer, sizeof(buffer));
-                    g_print("n_bytes: %d\n", nbytes);
-                    i = index_of(buffer, "ANS");
-                    if(i != -1) {
-                        i += ans_length;
-                        char time_length_num[nbytes - i];
-                        num_start = 0;
-                        while (buffer[i] != '\n') {
-                            time_length_num[num_start] = buffer[i];
-                            i++;
-                            num_start++;
+                g_usleep(20000);
+                if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
+                    /* get time percent pos */
+                    get_time_percent_pos();
+                    while(1) {
+                        nbytes = read(outfp, buffer, sizeof(buffer));
+                        i = index_of(buffer, "Exit");
+                        if (i != -1) {
+                            break;
                         }
-                        time_length = atof(time_length_num);
-                        g_print("total_length: %f\n", time_length);
-                        break;
+                        i = index_of(buffer, "ANS");
+                        if(i != -1) {
+                            i += percent_pos_length;
+                            char pos_num[nbytes - i];
+                            num_start = 0;
+                            while (buffer[i] != '\n') {
+                                pos_num[num_start]  = buffer[i];
+                                i++;
+                                num_start ++;
+                            }
+                            percent_pos = atoi(pos_num);
+                            break;
+                        }
                     }
+                    /* end */
                 }
-                /* end */
+                g_usleep(20000);
+                if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
+                    /* get time length */
+                    get_time_length();
+                    while(1) {
+                        nbytes = read(outfp, buffer, sizeof(buffer));
+                        i = index_of(buffer, "Exit");
+                        if (i != -1) {
+                            break;
+                        }
+                        i = index_of(buffer, "ANS");
+                        if(i != -1) {
+                            i += ans_length;
+                            char time_length_num[nbytes - i];
+                            num_start = 0;
+                            while (buffer[i] != '\n') {
+                                time_length_num[num_start] = buffer[i];
+                                i++;
+                                num_start++;
+                            }
+                            time_length = atof(time_length_num);
+                            break;
+                        }
+                    }
+                    /* end */
+                }
+
                 song_time_to_str(time_string, time_length, current_pos);
 
                 gtk_label_set_text(GTK_LABEL(time_label), time_string);
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
-                g_usleep(200000);
+                global_slider_value = percent_pos;
+                g_usleep(1000000);
             }
         } else {
             g_usleep(200000);
@@ -262,7 +266,11 @@ void remove_files(GtkButton *button, gpointer *tree_view) {
 
 void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     gdouble value = gtk_adjustment_get_value(adjustment);
-    g_print("slider value: %f\n", value);
+    if (abs(value - global_slider_value) > 5) {
+        g_print("slider value: %d\n", (int)value);
+        global_slider_value = value;
+        seek(value);
+    }
 }
 
 void update_play_button_label(GtkButton *button) {
