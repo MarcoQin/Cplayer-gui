@@ -96,3 +96,23 @@ char *merge_str(char *base, char *middle, char *tail) {
     strcat(result, tail);
     return result;
 }
+
+int mod (int a, int b)
+{
+   if(b < 0) //you can check for b == 0 separately and do what you want
+     return mod(-a, -b);
+   int ret = a % b;
+   if(ret < 0)
+     ret+=b;
+   return ret;
+}
+
+void song_time_to_str(char *s, double total_length, double current_pos) {
+    char label[14];
+    int total_min = (int)total_length / 60;
+    int total_sec = mod((int)total_length, 60);
+    int current_min = (int)current_pos / 60;
+    int current_sec = mod((int)current_pos, 60);
+    sprintf(label, "%d:%d / %d:%d", current_min, current_sec, total_min, total_sec);
+    strcpy(s, label);
+}
