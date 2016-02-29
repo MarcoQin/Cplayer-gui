@@ -8,6 +8,7 @@
 extern int mplayer_pid;
 extern int playing_status;
 extern int outfp;
+extern int alive;
 void init_player(char *path);
 void load_song(int id);
 void pause_song();
@@ -15,6 +16,7 @@ void get_time_percent_pos();
 void get_time_pos();
 void get_time_length();
 void stop_song();
-void seek(char *seconds);
+void seek(double percent);
 void free_player();
+int is_alive(void);
 #endif

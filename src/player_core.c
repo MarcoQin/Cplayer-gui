@@ -15,13 +15,17 @@ int playing_status = 0;   /* play status */
 int alive = KILL; /* pipe alive false */
 char buf[512];
 char *FIFO = "/tmp/my_fifo";
+int fifo_made = 0;
 int fd;
 pid_t mplayer_pid;
 int infp, outfp;
 
 void init_player(char *path) {
-    mkfifo(FIFO, 0666);
-    char *base = "mplayer -slave -quiet -input file=/tmp/my_fifo \"";
+    if (!fifo_made) {
+        mkfifo(FIFO, 0666);
+        fifo_made = 1;
+    }
+    char *base = "mplayer -slave -nolirc -quiet -input file=/tmp/my_fifo \"";
     /* char *tail = "\" < /dev/null 2>&1 &"; */
     char *tail = "\"";
     char *result = merge_str(base, path, tail);
@@ -78,6 +82,7 @@ void pause_song() {
 void get_time_percent_pos() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_percent_pos\n";
+        printf("get_time_percent_open FIFO\n");
         fd = open(FIFO, O_WRONLY);
         write(fd, s, strlen(s));
         close(fd);
@@ -87,6 +92,7 @@ void get_time_percent_pos() {
 void get_time_pos() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_pos\n";
+        printf("get_time_pos_open FIFO\n");
         fd = open(FIFO, O_WRONLY);
         write(fd, s, strlen(s));
         close(fd);
@@ -96,17 +102,20 @@ void get_time_pos() {
 void get_time_length() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_length\n";
+        printf("get_time_length_open FIFO\n");
         fd = open(FIFO, O_WRONLY);
         write(fd, s, strlen(s));
         close(fd);
     }
 }
 
-void seek(char *seconds) {
+void seek(double percent) {
     if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING) {
         char *base = "seek ";
-        char *tail = "\n";
-        char *s = merge_str(base, seconds, tail);
+        char *tail = " 1\n";
+        char percent_str[15];
+        snprintf(percent_str, 15, "%.4f", percent);
+        char *s = merge_str(base, percent_str, tail);
         fd = open(FIFO, O_WRONLY);
         write(fd, s, strlen(s));
         close(fd);
