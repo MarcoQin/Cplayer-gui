@@ -75,16 +75,21 @@ void watch_dog() {
     }
 }
 
-static gpointer thread_func(gpointer data) {
+static gpointer thread_func(gpointer user_data) {
+    GObject *slider_adjustment = g_object_get_data(user_data, "slider_adjustment");
     char buffer[1024];
-    int pos = 0;
-    int i, percent_pos;
-    percent_pos = strlen("ANS_PERCENT_POSITION=");
+    int percent_pos = 0;
+    int i, percent_pos_length;
+    percent_pos_length = strlen("ANS_PERCENT_POSITION=");
+    int ans_length = strlen("ANS_LENGTH=");
+    int ans_time_position = strlen("ANS_TIME_POSITION=");
     int nbytes;
     int num_start;
+    double time_length;
+    double current_pos;
     while(1) {
         if (playing_status == STOP) {
-            gtk_adjustment_set_value(GTK_ADJUSTMENT(data), 0);
+            gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 0);
         }
         if (outfp != 0) {
             if (playing_status != STOP || playing_status != PAUSE) {
@@ -94,8 +99,7 @@ static gpointer thread_func(gpointer data) {
                     g_print("n_bytes: %d\n", nbytes);
                     i = index_of(buffer, "ANS");
                     if(i != -1) {
-                        /* i += 21; */
-                        i += percent_pos;
+                        i += percent_pos_length;
                         char pos_num[nbytes - i];
                         num_start = 0;
                         while (buffer[i] != '\n') {
@@ -103,11 +107,54 @@ static gpointer thread_func(gpointer data) {
                             i++;
                             num_start ++;
                         }
-                        pos = atoi(pos_num);
+                        percent_pos = atoi(pos_num);
                         break;
                     }
                 }
-                gtk_adjustment_set_value(GTK_ADJUSTMENT(data), pos);
+                /* test time length */
+                get_time_length();
+                while(1) {
+                    nbytes = read(outfp, buffer, sizeof(buffer));
+                    g_print("n_bytes: %d\n", nbytes);
+                    i = index_of(buffer, "ANS");
+                    if(i != -1) {
+                        i += ans_length;
+                        char time_length_num[nbytes - i];
+                        num_start = 0;
+                        while (buffer[i] != '\n') {
+                            time_length_num[num_start] = buffer[i];
+                            i++;
+                            num_start++;
+                        }
+                        time_length = atof(time_length_num);
+                        g_print("total_length: %f\n", time_length);
+                        break;
+                    }
+                }
+                /* end */
+                /* current time pos */
+                get_time_pos();
+                while(1) {
+                    nbytes = read(outfp, buffer, sizeof(buffer));
+                    g_print("n_bytes: %d\n", nbytes);
+                    i = index_of(buffer, "ANS");
+                    if(i != -1) {
+                        i += ans_time_position;
+                        char current_pos_num[nbytes - i];
+                        num_start = 0;
+                        while (buffer[i] != '\n') {
+                            current_pos_num[num_start]  = buffer[i];
+                            i++;
+                            num_start ++;
+                        }
+                        current_pos = atof(current_pos_num);
+                        g_print("current_pos: %f\n", current_pos);
+                        break;
+                    }
+                }
+                /* end */
+
+                gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 g_usleep(200000);
             }
         } else {
@@ -433,7 +480,6 @@ int main(int argc, char *argv[]) {
     slider_adjustment = gtk_builder_get_object(builder, "adjustment2");
     g_signal_connect(slider_adjustment, "value-changed",
                      G_CALLBACK(slider_value_changed), NULL);
-    gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 35.0);
 
     GObject *play_button = gtk_builder_get_object(builder, "button1"); /* "play" button */
 
@@ -489,9 +535,10 @@ int main(int argc, char *argv[]) {
     /* end */
 
     /* thread */
+    g_object_set_data(G_OBJECT(user_data), "slider_adjustment", slider_adjustment);
     GError *error = NULL;
     GThread *thread;
-    thread = g_thread_try_new("thread1", thread_func, (gpointer)slider_adjustment, &error);
+    thread = g_thread_try_new("thread1", thread_func, (gpointer)user_data, &error);
     if (!thread) {
         g_print("Error: %s\n", error->message);
         return (-1);
