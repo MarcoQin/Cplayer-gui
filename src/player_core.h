@@ -12,6 +12,8 @@ void init_player(char *path);
 void load_song(int id);
 void pause_song();
 void get_time_percent_pos();
+void get_time_pos();
+void get_time_length();
 void stop_song();
 void seek(char *seconds);
 void free_player();

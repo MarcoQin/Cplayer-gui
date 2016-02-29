@@ -84,6 +84,15 @@ void get_time_percent_pos() {
     }
 }
 
+void get_time_pos() {
+    if (alive == ALIVE && is_alive() == ALIVE) {
+        char *s = "get_time_pos\n";
+        fd = open(FIFO, O_WRONLY);
+        write(fd, s, strlen(s));
+        close(fd);
+    }
+}
+
 void get_time_length() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_length\n";
