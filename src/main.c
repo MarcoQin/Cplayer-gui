@@ -77,6 +77,7 @@ void watch_dog() {
 
 static gpointer thread_func(gpointer user_data) {
     GObject *slider_adjustment = g_object_get_data(user_data, "slider_adjustment");
+    GObject *time_label = g_object_get_data(user_data, "time_label");
     char buffer[1024];
     int percent_pos = 0;
     int i, percent_pos_length;
@@ -87,51 +88,14 @@ static gpointer thread_func(gpointer user_data) {
     int num_start;
     double time_length;
     double current_pos;
+    char *time_string = (char *)malloc(15);
     while(1) {
         if (playing_status == STOP) {
             gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 0);
+            gtk_label_set_text(GTK_LABEL(time_label), "00:00 / 00:00");
         }
         if (outfp != 0) {
             if (playing_status != STOP || playing_status != PAUSE) {
-                get_time_percent_pos();
-                while(1) {
-                    nbytes = read(outfp, buffer, sizeof(buffer));
-                    g_print("n_bytes: %d\n", nbytes);
-                    i = index_of(buffer, "ANS");
-                    if(i != -1) {
-                        i += percent_pos_length;
-                        char pos_num[nbytes - i];
-                        num_start = 0;
-                        while (buffer[i] != '\n') {
-                            pos_num[num_start]  = buffer[i];
-                            i++;
-                            num_start ++;
-                        }
-                        percent_pos = atoi(pos_num);
-                        break;
-                    }
-                }
-                /* test time length */
-                get_time_length();
-                while(1) {
-                    nbytes = read(outfp, buffer, sizeof(buffer));
-                    g_print("n_bytes: %d\n", nbytes);
-                    i = index_of(buffer, "ANS");
-                    if(i != -1) {
-                        i += ans_length;
-                        char time_length_num[nbytes - i];
-                        num_start = 0;
-                        while (buffer[i] != '\n') {
-                            time_length_num[num_start] = buffer[i];
-                            i++;
-                            num_start++;
-                        }
-                        time_length = atof(time_length_num);
-                        g_print("total_length: %f\n", time_length);
-                        break;
-                    }
-                }
-                /* end */
                 /* current time pos */
                 get_time_pos();
                 while(1) {
@@ -153,7 +117,50 @@ static gpointer thread_func(gpointer user_data) {
                     }
                 }
                 /* end */
+                /* get time percent pos */
+                get_time_percent_pos();
+                while(1) {
+                    nbytes = read(outfp, buffer, sizeof(buffer));
+                    g_print("n_bytes: %d\n", nbytes);
+                    i = index_of(buffer, "ANS");
+                    if(i != -1) {
+                        i += percent_pos_length;
+                        char pos_num[nbytes - i];
+                        num_start = 0;
+                        while (buffer[i] != '\n') {
+                            pos_num[num_start]  = buffer[i];
+                            i++;
+                            num_start ++;
+                        }
+                        percent_pos = atoi(pos_num);
+                        break;
+                    }
+                }
+                /* end */
+                /* get time length */
+                get_time_length();
+                while(1) {
+                    nbytes = read(outfp, buffer, sizeof(buffer));
+                    g_print("n_bytes: %d\n", nbytes);
+                    i = index_of(buffer, "ANS");
+                    if(i != -1) {
+                        i += ans_length;
+                        char time_length_num[nbytes - i];
+                        num_start = 0;
+                        while (buffer[i] != '\n') {
+                            time_length_num[num_start] = buffer[i];
+                            i++;
+                            num_start++;
+                        }
+                        time_length = atof(time_length_num);
+                        g_print("total_length: %f\n", time_length);
+                        break;
+                    }
+                }
+                /* end */
+                song_time_to_str(time_string, time_length, current_pos);
 
+                gtk_label_set_text(GTK_LABEL(time_label), time_string);
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 g_usleep(200000);
             }
@@ -161,7 +168,6 @@ static gpointer thread_func(gpointer user_data) {
             g_usleep(200000);
         }
     }
-
     return (NULL);
 }
 
@@ -427,6 +433,7 @@ int main(int argc, char *argv[]) {
     GObject *tree_view;
     GObject *slider_adjustment;
     GObject *state_label;
+    GObject *time_label;
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
     /* gtk_builder_add_from_file(builder, "cplayer.ui", NULL); */
@@ -535,7 +542,9 @@ int main(int argc, char *argv[]) {
     /* end */
 
     /* thread */
+    time_label = gtk_builder_get_object(builder, "label2"); /* time screen */
     g_object_set_data(G_OBJECT(user_data), "slider_adjustment", slider_adjustment);
+    g_object_set_data(G_OBJECT(user_data), "time_label", time_label);
     GError *error = NULL;
     GThread *thread;
     thread = g_thread_try_new("thread1", thread_func, (gpointer)user_data, &error);
