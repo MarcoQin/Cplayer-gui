@@ -72,8 +72,8 @@ static gpointer thread_func(gpointer user_data) {
     int ans_time_position = strlen("ANS_TIME_POSITION=");
     int nbytes;
     int num_start;
-    double time_length;
-    double current_pos;
+    double time_length = 0;
+    double current_pos = 0;
     char *time_string = (char *)malloc(15);
     while(1) {
         if (playing_status == STOP) {
@@ -87,7 +87,12 @@ static gpointer thread_func(gpointer user_data) {
                 if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
                     get_time_pos();
                     while(1) {
+                        g_usleep(500000);
                         nbytes = read(outfp, buffer, sizeof(buffer));
+                        if (nbytes == -1) {
+                            break;
+                        }
+                        g_print("nbytes: %d\n", nbytes);
                         i = index_of(buffer, "Exit");
                         if (i != -1) {
                             break;
@@ -106,14 +111,19 @@ static gpointer thread_func(gpointer user_data) {
                             break;
                         }
                     }
-                    /* end */
                 }
+                /* end */
                 g_usleep(20000);
+                /* get time percent pos */
                 if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
-                    /* get time percent pos */
                     get_time_percent_pos();
                     while(1) {
+                        g_usleep(500000);
                         nbytes = read(outfp, buffer, sizeof(buffer));
+                        g_print("nbytes: %d\n", nbytes);
+                        if (nbytes == -1) {
+                            break;
+                        }
                         i = index_of(buffer, "Exit");
                         if (i != -1) {
                             break;
@@ -132,14 +142,19 @@ static gpointer thread_func(gpointer user_data) {
                             break;
                         }
                     }
-                    /* end */
                 }
+                /* end */
                 g_usleep(20000);
+                /* get time length */
                 if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
-                    /* get time length */
                     get_time_length();
                     while(1) {
+                        g_usleep(500000);
                         nbytes = read(outfp, buffer, sizeof(buffer));
+                        if (nbytes == -1) {
+                            break;
+                        }
+                        g_print("nbytes: %d\n", nbytes);
                         i = index_of(buffer, "Exit");
                         if (i != -1) {
                             break;
@@ -158,12 +173,12 @@ static gpointer thread_func(gpointer user_data) {
                             break;
                         }
                     }
-                    /* end */
                 }
+                /* end */
 
                 song_time_to_str(time_string, time_length, current_pos);
-
                 gtk_label_set_text(GTK_LABEL(time_label), time_string);
+
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 global_slider_value = percent_pos;
                 g_usleep(1000000);
