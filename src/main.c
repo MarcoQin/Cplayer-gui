@@ -64,7 +64,7 @@ void watch_dog() {
 static gpointer thread_func(gpointer user_data) {
     GObject *slider_adjustment = g_object_get_data(user_data, "slider_adjustment");
     GObject *time_label = g_object_get_data(user_data, "time_label");
-    char buffer[1024];
+    char buffer[100];
     int percent_pos = 0;
     int i;
     int percent_pos_length = strlen("ANS_PERCENT_POSITION=");
@@ -80,6 +80,8 @@ static gpointer thread_func(gpointer user_data) {
             gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 0);
             global_slider_value = 0;
             gtk_label_set_text(GTK_LABEL(time_label), "00:00 / 00:00");
+            g_usleep(200000);
+            continue;
         }
         if (outfp != 0) {
             if (playing_status == PLAYING) {
@@ -182,8 +184,13 @@ static gpointer thread_func(gpointer user_data) {
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 global_slider_value = percent_pos;
                 g_usleep(1000000);
+            } else {
+                /* pause or some thing else */
+                g_print("playing state: %d", playing_status);
+                g_usleep(200000);
             }
         } else {
+            g_print("playing state: %d", playing_status);
             g_usleep(200000);
         }
     }
