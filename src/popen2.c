@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -14,7 +15,6 @@ pid_t popen22(char **command, int *infp, int *outfp) {
 
     if (pipe(p_stdin) != 0 || pipe(p_stdout) != 0)
         return -1;
-
     pid = fork();
 
     if (pid < 0)
@@ -74,6 +74,10 @@ pid_t popen2(char *command, int *infp, int *outfp) {
         close(p_stdout[READ]);
     else
         *outfp = p_stdout[READ];
+
+    /* non-block test */
+    fcntl(*outfp, F_SETFL, O_NONBLOCK);
+    /* non-block read pipe end */
 
     return pid;
 }
