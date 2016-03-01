@@ -15,9 +15,10 @@ int playing_status = 0;   /* play status */
 int alive = KILL; /* pipe alive false */
 char buf[512];
 char *FIFO = "/tmp/my_fifo";
+int fifo_fd = 0;
 int fifo_made = 0;
 int fd;
-pid_t mplayer_pid;
+pid_t mplayer_pid = 0;
 int infp, outfp;
 
 void init_player(char *path) {
@@ -25,13 +26,11 @@ void init_player(char *path) {
         mkfifo(FIFO, 0666);
         fifo_made = 1;
     }
-    char *base = "mplayer -slave -nolirc -quiet -input file=/tmp/my_fifo \"";
-    /* char *tail = "\" < /dev/null 2>&1 &"; */
+    char *base = "mplayer -slave -nolirc -msglevel all=-1:global=5 -quiet -input file=/tmp/my_fifo \"";
     char *tail = "\"";
     char *result = merge_str(base, path, tail);
     mplayer_pid = popen2(result, &infp, &outfp);
     mplayer_pid += 2; // handle subprocess
-    /* mplayer_pid += 1; // handle subprocess */
     playing_status = PLAYING; /* playing status */
     alive = ALIVE;
     free(result);
@@ -49,9 +48,11 @@ void load_song(int id) {
         char *base = "loadfile \"";
         char *tail = "\"\n";
         char *s = merge_str(base, path, tail);
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        write(fifo_fd, s, strlen(s));
         free(s);
         playing_status = PLAYING; /* playing status */
     } else {
@@ -62,9 +63,11 @@ void load_song(int id) {
 void stop_song() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "stop\n";
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        write(fifo_fd, s, strlen(s));
     }
     playing_status = STOP; /* playing status */
 }
@@ -72,9 +75,11 @@ void stop_song() {
 void pause_song() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "pause\n";
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        write(fifo_fd, s, strlen(s));
         playing_status = playing_status == PAUSE ? PLAYING : PAUSE; /* playing status */
     }
 }
@@ -83,9 +88,13 @@ void get_time_percent_pos() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_percent_pos\n";
         printf("get_time_percent_open FIFO\n");
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        int st = write(fifo_fd, s, strlen(s));
+        printf("write status: %d\n", st);
+        printf("fifo_fd:%d\n", fifo_fd);
     }
 }
 
@@ -93,9 +102,11 @@ void get_time_pos() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_pos\n";
         printf("get_time_pos_open FIFO\n");
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        write(fifo_fd, s, strlen(s));
     }
 }
 
@@ -103,9 +114,11 @@ void get_time_length() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_length\n";
         printf("get_time_length_open FIFO\n");
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        write(fifo_fd, s, strlen(s));
     }
 }
 
@@ -116,9 +129,11 @@ void seek(double percent) {
         char percent_str[15];
         snprintf(percent_str, 15, "%.4f", percent);
         char *s = merge_str(base, percent_str, tail);
-        fd = open(FIFO, O_WRONLY);
-        write(fd, s, strlen(s));
-        close(fd);
+        if (!fifo_fd || fifo_fd == -1) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+            printf("fifo_fd_first_open: %d", fifo_fd);
+        }
+        write(fifo_fd, s, strlen(s));
         free(s);
     }
 }
@@ -128,5 +143,11 @@ void free_player() {
         stop_song();
     playing_status = STOP;
     alive = KILL;
-    pclose2(mplayer_pid);
+    if (mplayer_pid > 0) {
+        pclose2(mplayer_pid);
+    }
+    if (fifo_fd > 0) {
+        close(fifo_fd);
+    }
+    printf("success free_player");
 }
