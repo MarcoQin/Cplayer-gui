@@ -89,7 +89,7 @@ static gpointer thread_func(gpointer user_data) {
                 if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
                     get_time_pos();
                     while(1) {
-                        g_usleep(500000);
+                        g_usleep(300000);
                         nbytes = read(outfp, buffer, sizeof(buffer));
                         if (nbytes == -1) {
                             break;
@@ -115,12 +115,11 @@ static gpointer thread_func(gpointer user_data) {
                     }
                 }
                 /* end */
-                g_usleep(20000);
                 /* get time percent pos */
                 if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
                     get_time_percent_pos();
                     while(1) {
-                        g_usleep(500000);
+                        g_usleep(300000);
                         nbytes = read(outfp, buffer, sizeof(buffer));
                         g_print("nbytes: %d\n", nbytes);
                         if (nbytes == -1) {
@@ -146,12 +145,11 @@ static gpointer thread_func(gpointer user_data) {
                     }
                 }
                 /* end */
-                g_usleep(20000);
                 /* get time length */
                 if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
                     get_time_length();
                     while(1) {
-                        g_usleep(500000);
+                        g_usleep(300000);
                         nbytes = read(outfp, buffer, sizeof(buffer));
                         if (nbytes == -1) {
                             break;
@@ -183,7 +181,7 @@ static gpointer thread_func(gpointer user_data) {
 
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 global_slider_value = percent_pos;
-                g_usleep(1000000);
+                g_usleep(100000);
             } else {
                 /* pause or some thing else */
                 g_print("playing state: %d", playing_status);
