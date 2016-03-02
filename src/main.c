@@ -293,6 +293,12 @@ void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     }
 }
 
+void volume_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
+    gdouble value = gtk_adjustment_get_value(adjustment);
+    g_print("volume value: %d\n", (int)value);
+    set_volume((int)value);
+}
+
 void update_play_button_label(GtkButton *button) {
     if (playing_status == PLAYING) {
         gtk_button_set_label(button, "▮▮");
@@ -460,6 +466,7 @@ int main(int argc, char *argv[]) {
     GObject *file_chooser_dialog;
     GObject *tree_view;
     GObject *slider_adjustment;
+    GObject *volume_adjustment;
     GObject *state_label;
     GObject *time_label;
     gtk_init(&argc, &argv);
@@ -515,6 +522,11 @@ int main(int argc, char *argv[]) {
     slider_adjustment = gtk_builder_get_object(builder, "adjustment2");
     g_signal_connect(slider_adjustment, "value-changed",
                      G_CALLBACK(slider_value_changed), NULL);
+
+    volume_adjustment = gtk_builder_get_object(builder, "adjustment3");
+    gtk_adjustment_set_value(GTK_ADJUSTMENT(volume_adjustment), 100);
+    g_signal_connect(volume_adjustment, "value-changed",
+                     G_CALLBACK(volume_value_changed), NULL);
 
     GObject *play_button = gtk_builder_get_object(builder, "button1"); /* "play" button */
 
