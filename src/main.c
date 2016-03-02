@@ -77,8 +77,8 @@ static gpointer thread_func(gpointer user_data) {
     char *time_string = (char *)malloc(15);
     while(1) {
         if (playing_status == STOP) {
-            gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 0);
             global_slider_value = 0;
+            gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), 0);
             gtk_label_set_text(GTK_LABEL(time_label), "00:00 / 00:00");
             g_usleep(200000);
             continue;
@@ -179,8 +179,8 @@ static gpointer thread_func(gpointer user_data) {
                 song_time_to_str(time_string, time_length, current_pos);
                 gtk_label_set_text(GTK_LABEL(time_label), time_string);
 
-                gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 global_slider_value = percent_pos;
+                gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 g_usleep(100000);
             } else {
                 /* pause or some thing else */
