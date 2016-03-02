@@ -23,5 +23,8 @@ Cplayer with a GTK+ GUI.
 
 ![Cplayer-add-files][add-files]
 
+![Cplayer-desktop-app][desktop-app]
+
 [launch]: https://github.com/MarcoQin/gallery/blob/master/Cplayer-gui/launch.png
 [add-files]: https://github.com/MarcoQin/gallery/blob/master/Cplayer-gui/add-files.png
+[desktop-app]: https://github.com/MarcoQin/gallery/blob/master/Cplayer-gui/desktop-app.png
