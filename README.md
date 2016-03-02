@@ -1,5 +1,5 @@
 # Cplayer-gui
-Cplayer with a GTK+ GUI.
+Cplayer with GTK+ GUI.
 
 ####Requirments:
 
