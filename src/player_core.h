@@ -17,6 +17,7 @@ void get_time_pos();
 void get_time_length();
 void stop_song();
 void seek(double percent);
+void set_volume(int volume);
 void free_player();
 int is_alive(void);
 #endif

@@ -131,6 +131,21 @@ void seek(double percent) {
     }
 }
 
+void set_volume(int volume) {
+    if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING) {
+        char *base = "volume ";
+        char *tail = " 1\n";
+        char volume_str[3];
+        snprintf(volume_str, 3, "%d", volume);
+        char *s = merge_str(base, volume_str, tail);
+        if (!fifo_fd) {
+            fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
+        }
+        write(fifo_fd, s, strlen(s));
+        free(s);
+    }
+}
+
 void free_player() {
     if (playing_status != STOP && is_alive() == ALIVE)
         stop_song();
