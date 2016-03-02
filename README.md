@@ -14,11 +14,7 @@ Cplayer with a GTK+ GUI.
 ####Compile and install:
 
     make
-    sudo make install
-
-####GThread example
-
-    gcc -o thread_example thread_example.c $(pkg-config --cflags --libs gtk+-3.0 gthread-2.0)
+    sudo make install  /* This will install the cplayer desktop app to your system */
 
 ####Screenshots:
 
