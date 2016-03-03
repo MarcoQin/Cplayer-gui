@@ -61,20 +61,49 @@ void watch_dog() {
     }
 }
 
-static gpointer thread_func(gpointer user_data) {
+float get_tick_state(void tick_func(void), int offset) {
+    if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
+        tick_func();
+        /* sleep 0.3s for waiting infp wrote completed and outfp is ready */
+        g_usleep(300000);
+        while(1) {
+            char buffer[100];
+            int nbytes = read(outfp, buffer, sizeof(buffer));
+            if (nbytes == -1) {
+                break;
+            }
+            int i = index_of(buffer, "Exit");
+            if (i != -1) {
+                break;
+            }
+            i = index_of(buffer, "ANS");
+            if(i != -1) {
+                i += offset;
+                char output_num[nbytes - i];
+                int num_start = 0;
+                while (buffer[i] != '\n') {
+                    output_num[num_start]  = buffer[i];
+                    i++;
+                    num_start ++;
+                }
+                return atof(output_num);
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+static gpointer update_tick(gpointer user_data) {
     GObject *slider_adjustment = g_object_get_data(user_data, "slider_adjustment");
     GObject *time_label = g_object_get_data(user_data, "time_label");
-    char buffer[100];
-    int percent_pos = 0;
-    int i;
     int percent_pos_length = strlen("ANS_PERCENT_POSITION=");
     int ans_length = strlen("ANS_LENGTH=");
     int ans_time_position = strlen("ANS_TIME_POSITION=");
-    int nbytes;
-    int num_start;
-    double time_length = 0;
-    double current_pos = 0;
-    char *time_string = (char *)malloc(15);
+    int percent_pos = 0;
+    float time_length = 0;
+    float current_pos = 0;
+    char *format_time_str = (char *)malloc(15);
     while(1) {
         if (playing_status == STOP) {
             global_slider_value = 0;
@@ -86,109 +115,24 @@ static gpointer thread_func(gpointer user_data) {
         if (outfp != 0) {
             if (playing_status == PLAYING) {
                 /* current time pos */
-                if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
-                    get_time_pos();
-                    while(1) {
-                        g_usleep(300000);
-                        nbytes = read(outfp, buffer, sizeof(buffer));
-                        if (nbytes == -1) {
-                            break;
-                        }
-                        g_print("nbytes: %d\n", nbytes);
-                        i = index_of(buffer, "Exit");
-                        if (i != -1) {
-                            break;
-                        }
-                        i = index_of(buffer, "ANS");
-                        if(i != -1) {
-                            i += ans_time_position;
-                            char current_pos_num[nbytes - i];
-                            num_start = 0;
-                            while (buffer[i] != '\n') {
-                                current_pos_num[num_start]  = buffer[i];
-                                i++;
-                                num_start ++;
-                            }
-                            current_pos = atof(current_pos_num);
-                            break;
-                        }
-                    }
-                }
-                /* end */
+                current_pos = get_tick_state(get_time_pos, ans_time_position);
                 /* get time percent pos */
-                if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
-                    get_time_percent_pos();
-                    while(1) {
-                        g_usleep(300000);
-                        nbytes = read(outfp, buffer, sizeof(buffer));
-                        g_print("nbytes: %d\n", nbytes);
-                        if (nbytes == -1) {
-                            break;
-                        }
-                        i = index_of(buffer, "Exit");
-                        if (i != -1) {
-                            break;
-                        }
-                        i = index_of(buffer, "ANS");
-                        if(i != -1) {
-                            i += percent_pos_length;
-                            char pos_num[nbytes - i];
-                            num_start = 0;
-                            while (buffer[i] != '\n') {
-                                pos_num[num_start]  = buffer[i];
-                                i++;
-                                num_start ++;
-                            }
-                            percent_pos = atoi(pos_num);
-                            break;
-                        }
-                    }
-                }
-                /* end */
+                percent_pos = (int)get_tick_state(get_time_percent_pos, percent_pos_length);
                 /* get time length */
-                if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
-                    get_time_length();
-                    while(1) {
-                        g_usleep(300000);
-                        nbytes = read(outfp, buffer, sizeof(buffer));
-                        if (nbytes == -1) {
-                            break;
-                        }
-                        g_print("nbytes: %d\n", nbytes);
-                        i = index_of(buffer, "Exit");
-                        if (i != -1) {
-                            break;
-                        }
-                        i = index_of(buffer, "ANS");
-                        if(i != -1) {
-                            i += ans_length;
-                            char time_length_num[nbytes - i];
-                            num_start = 0;
-                            while (buffer[i] != '\n') {
-                                time_length_num[num_start] = buffer[i];
-                                i++;
-                                num_start++;
-                            }
-                            time_length = atof(time_length_num);
-                            break;
-                        }
-                    }
-                }
-                /* end */
+                time_length = get_tick_state(get_time_length, ans_length);
 
-                song_time_to_str(time_string, time_length, current_pos);
-                gtk_label_set_text(GTK_LABEL(time_label), time_string);
+                song_time_to_str(format_time_str, time_length, current_pos);
+                gtk_label_set_text(GTK_LABEL(time_label), format_time_str);
 
                 global_slider_value = percent_pos;
                 gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
                 g_usleep(100000);
             } else {
                 /* pause or some thing else */
-                g_print("playing state: %d", playing_status);
                 g_usleep(200000);
             }
         } else {
-            g_print("playing state: %d", playing_status);
+            /* outfp is not ready */
             g_usleep(200000);
         }
     }
@@ -287,7 +231,6 @@ void remove_files(GtkButton *button, gpointer *tree_view) {
 void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     gdouble value = gtk_adjustment_get_value(adjustment);
     if (abs(value - global_slider_value) > 5) {
-        g_print("slider value: %d\n", (int)value);
         global_slider_value = value;
         seek(value);
     }
@@ -295,7 +238,6 @@ void slider_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
 
 void volume_value_changed(GtkAdjustment *adjustment, gpointer *user_data) {
     gdouble value = gtk_adjustment_get_value(adjustment);
-    g_print("volume value: %d\n", (int)value);
     set_volume((int)value);
 }
 
@@ -581,13 +523,13 @@ int main(int argc, char *argv[]) {
     signal(SIGUSR1, stopping);
     /* end */
 
-    /* thread */
+    /* update tick thread */
     time_label = gtk_builder_get_object(builder, "label2"); /* time screen */
     g_object_set_data(G_OBJECT(user_data), "slider_adjustment", slider_adjustment);
     g_object_set_data(G_OBJECT(user_data), "time_label", time_label);
     GError *error = NULL;
     GThread *thread;
-    thread = g_thread_try_new("thread1", thread_func, (gpointer)user_data, &error);
+    thread = g_thread_try_new("thread1", update_tick, (gpointer)user_data, &error);
     if (!thread) {
         g_print("Error: %s\n", error->message);
         return (-1);
