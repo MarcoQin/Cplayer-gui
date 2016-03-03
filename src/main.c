@@ -413,9 +413,8 @@ int main(int argc, char *argv[]) {
     GObject *time_label;
     gtk_init(&argc, &argv);
     builder = gtk_builder_new();
-    /* gtk_builder_add_from_file(builder, "cplayer.ui", NULL); */
+
     gtk_builder_add_from_resource(builder, "/src/cplayer.ui", NULL);
-    /* gtk_builder_add_from_resource(builder, "/home/marcoqin/marco/code/Cplayer-gui/src/cplayer.ui", NULL); */
     window = gtk_builder_get_object(builder, "window1"); /* main window */
 
     tree_view = gtk_builder_get_object(builder, "treeview1");

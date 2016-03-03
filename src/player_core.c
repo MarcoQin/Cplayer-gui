@@ -130,9 +130,10 @@ void set_volume(int volume) {
     if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING) {
         char *base = "volume ";
         char *tail = " 1\n";
-        char volume_str[3];
-        snprintf(volume_str, 3, "%d", volume);
+        char volume_str[4];
+        snprintf(volume_str, 4, "%d", volume);
         char *s = merge_str(base, volume_str, tail);
+        printf("%s\n", s);
         if (!fifo_fd) {
             fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
         }
