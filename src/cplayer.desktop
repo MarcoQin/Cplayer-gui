@@ -8,4 +8,5 @@ Comment=Light weight music player written in C.
 Comment[zh_TW]=有錢也買不到的超棒 轻量级音乐播放器。
 Comment[zh]=轻量级音乐播放器。
 NoDisplay=false
-Categories=Utility;
+Categories=GNOME;GTK;AudioVideo;Audio;Player;
+MimeType=application/x-ogg;application/ogg;audio/x-vorbis+ogg;audio/x-scpls;audio/x-mp3;audio/x-mpeg;audio/mpeg;audio/x-mpegurl;audio/x-flac;audio/mp4;x-scheme-handler/itms;x-scheme-handler/itmss;
