@@ -249,8 +249,11 @@ void update_play_button_label(GtkButton *button) {
     }
 }
 
-void update_play_state_label(GtkLabel *label, gchar *song_name) {
-    gtk_label_set_text(GTK_LABEL(label), song_name);
+void update_play_state_label(gpointer user_data, gchar *song_name) {
+    GObject *state_label = g_object_get_data(user_data, "state_label");
+    GObject *window = g_object_get_data(user_data, "window");
+    gtk_label_set_text(GTK_LABEL(state_label), song_name);
+    gtk_window_set_title(GTK_WINDOW(window), song_name);
 }
 
 void song_list_tree_view_row_activated(GtkTreeView *tree_view,
@@ -271,7 +274,7 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
         load_song(id);
         watch_dog();
         update_play_button_label(GTK_BUTTON(play_button));
-        update_play_state_label(GTK_LABEL(state_label), name);
+        update_play_state_label(user_data, name);
         g_free(name);
         g_free(file_path);
     }
@@ -337,7 +340,7 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
             GObject *play_button = g_object_get_data(user_data, "play_button");
             GObject *state_label = g_object_get_data(user_data, "state_label");
             update_play_button_label(GTK_BUTTON(play_button));
-            update_play_state_label(GTK_LABEL(state_label), name);
+            update_play_state_label(user_data, name);
             g_free(name);
             g_free(file_path);
             /* end */
@@ -395,9 +398,11 @@ void play_button_pressed(GtkButton *button, gpointer user_data) {
     }
 }
 
-void stop_button_pressed(GtkButton *button, gpointer play_button) {
+void stop_button_pressed(GtkButton *button, gpointer user_data) {
     stop_song();
-    update_play_button_label(play_button);
+    GObject *play_button = g_object_get_data(user_data, "play_button");
+    update_play_button_label(GTK_BUTTON(play_button));
+    update_play_state_label(user_data, "cplayer");
 }
 
 int main(int argc, char *argv[]) {
@@ -473,6 +478,7 @@ int main(int argc, char *argv[]) {
 
     g_object_set_data(G_OBJECT(user_data), "play_button", play_button);
     g_object_set_data(G_OBJECT(user_data), "state_label", state_label);
+    g_object_set_data(G_OBJECT(user_data), "window", window);
     g_signal_connect(tree_view, "row-activated",
                      G_CALLBACK(song_list_tree_view_row_activated), user_data);
 
@@ -491,7 +497,7 @@ int main(int argc, char *argv[]) {
 
     button = gtk_builder_get_object(builder, "button2"); /* "stop" button */
     g_signal_connect(button, "clicked", G_CALLBACK(stop_button_pressed),
-                     play_button);
+                     user_data);
 
 
     db_enable();
