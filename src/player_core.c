@@ -133,7 +133,6 @@ void set_volume(int volume) {
         char volume_str[4];
         snprintf(volume_str, 4, "%d", volume);
         char *s = merge_str(base, volume_str, tail);
-        printf("%s\n", s);
         if (!fifo_fd) {
             fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
         }
