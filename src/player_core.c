@@ -152,5 +152,4 @@ void free_player() {
     if (fifo_fd > 0) {
         close(fifo_fd);
     }
-    printf("success free_player\n");
 }
