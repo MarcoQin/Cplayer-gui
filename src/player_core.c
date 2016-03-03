@@ -84,20 +84,16 @@ void pause_song() {
 void get_time_percent_pos() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_percent_pos\n";
-        printf("get_time_percent_open FIFO\n");
         if (!fifo_fd) {
             fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
         }
         int st = write(fifo_fd, s, strlen(s));
-        printf("write status: %d\n", st);
-        printf("fifo_fd:%d\n", fifo_fd);
     }
 }
 
 void get_time_pos() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_pos\n";
-        printf("get_time_pos_open FIFO\n");
         if (!fifo_fd) {
             fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
         }
@@ -108,7 +104,6 @@ void get_time_pos() {
 void get_time_length() {
     if (alive == ALIVE && is_alive() == ALIVE) {
         char *s = "get_time_length\n";
-        printf("get_time_length_open FIFO\n");
         if (!fifo_fd) {
             fifo_fd = open(FIFO, O_WRONLY | O_NONBLOCK);
         }
