@@ -180,7 +180,7 @@ void file_chooser_ok_button(GtkButton *button, GObject *user_data) {
     gtk_widget_hide(GTK_WIDGET(file_chooser));
 }
 
-void selection_remove_foreach_fuc(GtkTreeModel *model, GtkTreePath *path,
+void selection_remove_foreach_func(GtkTreeModel *model, GtkTreePath *path,
                            GtkTreeIter *iter, GList **rowref_list) {
     gint id;
     gtk_tree_model_get(model, iter, COL_ID, &id, -1);
@@ -205,7 +205,7 @@ void remove_files(GtkButton *button, gpointer *tree_view) {
     GList *rr_list = NULL; /* list of GtkTreeRowReferences to remove */
     GList *node;
     gtk_tree_selection_selected_foreach(
-        selection, (GtkTreeSelectionForeachFunc)selection_remove_foreach_fuc,
+        selection, (GtkTreeSelectionForeachFunc)selection_remove_foreach_func,
         &rr_list);
     for (node = rr_list; node != NULL; node = node->next) {
         GtkTreePath *path;
