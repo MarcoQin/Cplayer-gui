@@ -2,7 +2,34 @@
 
 int quit = 0;
 
+CPlayer *global_cplayer_ctx;
+
 static bool g_ffmpeg_global_inited = false;
+
+static void dump_metadata(void *ctx, AVDictionary *m, const char *indent) {
+    if (m && !(av_dict_count(m) == 1 && av_dict_get(m, "language", NULL, 0))) {
+        AVDictionaryEntry *tag = NULL;
+
+        av_log(ctx, AV_LOG_INFO, "%sMetadata:\n", indent);
+        while ((tag = av_dict_get(m, "", tag, AV_DICT_IGNORE_SUFFIX)))
+            if (strcmp("language", tag->key)) {
+                const char *p = tag->value;
+                av_log(ctx, AV_LOG_INFO,
+                        "%s  %-16s: ", indent, tag->key);
+                while (*p) {
+                    char tmp[256];
+                    size_t len = strcspn(p, "\x8\xa\xb\xc\xd");
+                    av_strlcpy(tmp, p, FFMIN(sizeof(tmp), len+1));
+                    av_log(ctx, AV_LOG_INFO, "%s", tmp);
+                    p += len;
+                    if (*p == 0xd) av_log(ctx, AV_LOG_INFO, " ");
+                    if (*p == 0xa) av_log(ctx, AV_LOG_INFO, "\n%s  %-16s: ", indent, "");
+                    if (*p) p++;
+                }
+                av_log(ctx, AV_LOG_INFO, "\n");
+            }
+    }
+}
 
 void packet_queue_init(PacketQueue *q) {
     memset(q, 0, sizeof(PacketQueue));
@@ -17,7 +44,7 @@ static void packet_queue_flush(PacketQueue *q) {
         pkt1 = pkt->next;
         /* av_free_packet(&pkt->pkt); */
         av_packet_unref(&pkt->pkt);
-        av_free(&pkt);
+        av_free(pkt);
     }
     q->last_pkt = NULL;
     q->first_pkt = NULL;
@@ -28,8 +55,10 @@ static void packet_queue_flush(PacketQueue *q) {
 
 static void packet_queue_destory(PacketQueue *q) {
     packet_queue_flush(q);
-    SDL_DestroyMutex(q->mutex);
-    SDL_DestroyCond(q->cond);
+    if (q->mutex)
+        SDL_DestroyMutex(q->mutex);
+    if (q->cond)
+        SDL_DestroyCond(q->cond);
 }
 
 void global_init() {
@@ -45,13 +74,6 @@ void global_init() {
     }
 
     g_ffmpeg_global_inited = true;
-}
-
-CPlayer *player_create() {
-    CPlayer *cp = (CPlayer *) av_mallocz(sizeof(CPlayer));
-    if (!cp)
-        return NULL;
-    return cp;
 }
 
 static int audio_resampling(AVCodecContext *audio_decode_ctx,
@@ -208,6 +230,8 @@ int audio_decode_frame(CPlayer *cp, uint8_t *audio_buf, int buf_size){
                 // No data yet, get more frames
                 continue;
             }
+            int n = 2 * frame.channels;
+            is->audio_clock += (double)data_size / (double)(n * frame.sample_rate);
             // We have data, return it and come back for more later
             return data_size;
         }
@@ -225,6 +249,10 @@ int audio_decode_frame(CPlayer *cp, uint8_t *audio_buf, int buf_size){
         }
         audio_pkt_data = pkt.data;
         audio_pkt_size = pkt.size;
+        /* if update, update the audio clock w/pts */
+        if (pkt.pts != AV_NOPTS_VALUE) {
+            is->audio_clock = av_q2d(is->audio_codec_ctx->pkt_timebase) * pkt.pts;
+        }
     }
 }
 
@@ -313,6 +341,25 @@ static int read_thread(void *arg) {
     if (is->audio_stream_index == -1)
         return -1;
 
+    // Get metadata and others
+    dump_metadata(NULL, is->format_ctx->metadata, "    ");
+    /* av_dump_format(is->format_ctx, 0, cp->input_filename, 0); */
+
+    if (is->format_ctx->duration != AV_NOPTS_VALUE) {
+        int hours, mins, secs, us;
+        int64_t duration = is->format_ctx->duration + (is->format_ctx->duration <= INT64_MAX - 5000 ? 5000 : 0);
+        secs  = duration / AV_TIME_BASE;
+        is->duration = secs;
+        av_log(NULL, AV_LOG_INFO, "seconds: %d\n", secs);
+        us    = duration % AV_TIME_BASE;
+        mins  = secs / 60;
+        secs %= 60;
+        hours = mins / 60;
+        mins %= 60;
+        av_log(NULL, AV_LOG_INFO, "%02d:%02d:%02d.%02d\n", hours, mins, secs,
+                (100 * us) / AV_TIME_BASE);
+    }
+
     is->audio_codec_ctx_orig = is->format_ctx->streams[is->audio_stream_index]->codec;
     is->audio_codec = avcodec_find_decoder(is->audio_codec_ctx_orig->codec_id);
     if (!is->audio_codec) {
@@ -348,7 +395,16 @@ static void stream_close(CPlayer *cp) {
     av_log(NULL, AV_LOG_DEBUG, "wait for read_tid\n");
     SDL_WaitThread(is->read_tid, NULL);
     audio_close();
-    avformat_close_input(&is->format_ctx);
+    if (is->audio_codec_ctx_orig) {
+        avcodec_close(is->audio_codec_ctx_orig);
+    }
+    if (is->audio_codec_ctx) {
+        avcodec_close(is->audio_codec_ctx);
+    }
+    if (is->format_ctx) {
+        avformat_close_input(&is->format_ctx);
+        is->format_ctx = NULL;
+    }
     packet_queue_destory(&is->audio_queue);
     av_free(is);
 }
@@ -374,6 +430,24 @@ AudioState *stream_open(CPlayer *cp, const char *filename) {
     return is;
 }
 
+CPlayer *player_create() {
+    CPlayer *cp = (CPlayer *) av_mallocz(sizeof(CPlayer));
+    if (!cp)
+        return NULL;
+    global_cplayer_ctx = cp;
+    return cp;
+}
+
+void player_destory(CPlayer *cp) {
+    if (!cp)
+        return;
+    if (cp->is) {
+        stream_close(cp);
+        av_log(NULL, AV_LOG_WARNING, "destroy_cplayer: force stream_close()\n");
+        cp->is = NULL;
+    }
+    av_free(cp);
+}
 
 int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
     AVPacketList *pkt1;
@@ -433,4 +507,10 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block) {
     }
     SDL_UnlockMutex(q->mutex);
     return ret;
+}
+
+void cp_pause_audio() {
+    AudioState *is = global_cplayer_ctx->is;
+    is->paused = !is->paused;
+    SDL_PauseAudio(is->paused);
 }
