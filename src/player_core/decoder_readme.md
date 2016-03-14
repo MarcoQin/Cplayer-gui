@@ -1,6 +1,7 @@
 gcc main.c -lavformat -lavcodec -lswscale -lavutil -lz
 gcc -o haha main.c -lavformat -lavcodec -lswscale -lavutil -lz `sdl2-config --cflags --libs`
 gcc -o haha core.c -lavformat -lavcodec -lswscale -lavutil -lswresample -lz `sdl2-config --cflags --libs`
+gcc -o haha core_test.c player.c -lavformat -lavcodec -lswscale -lavutil -lswresample -lz `sdl2-config --cflags --libs`
 
 install ffmpeg:
 
