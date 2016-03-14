@@ -46,6 +46,7 @@ typedef struct PacketQueue {
 } PacketQueue;
 
 typedef struct AudioState {
+    SDL_Thread *read_tid;
     AVFormatContext *format_ctx;
     int audio_stream_index;
     int duration;  // total secs
@@ -54,6 +55,9 @@ typedef struct AudioState {
     uint8_t silence_buf[SDL_AUDIO_MIN_BUFFER_SIZE];
     int audio_volume;
     int muted;
+    AVCodecContext *audio_codec_ctx_orig;
+    AVCodecContext *audio_codec_ctx;
+    AVCodec *audio_codec;
 } AudioState;
 
 typedef struct CPlayer {
