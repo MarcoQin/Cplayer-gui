@@ -30,8 +30,8 @@
 #define MAX_AUDIO_FRAME_SIZE 192000
 #define SDL_AUDIO_MAX_CALLBACKS_PER_SEC 30
 #define FRAME_QUEUE_SIZE FFMAX(SAMPLE_QUEUE_SIZE, FFMAX(VIDEO_PICTURE_QUEUE_SIZE_MAX, SUBPICTURE_QUEUE_SIZE))
+#define MAX_AUDIOQ_SIZE (5 * 16 * 1024)
 
-extern int quit;
 
 typedef int bool;
 #define true 1
@@ -52,6 +52,13 @@ typedef struct AudioState {
     AVCodecContext *audio_codec_ctx;
     AVCodec *audio_codec;
     PacketQueue audio_queue;
+    uint8_t audio_buf[(MAX_AUDIO_FRAME_SIZE * 3) / 2];
+    unsigned int audio_buf_size;
+    unsigned int audio_buf_index;
+    AVFrame audio_frame;
+    AVPacket audio_pkt;
+    uint8_t *audio_pkt_data;
+    int audio_pkt_size;
     int audio_stream_index;
     int duration;  // total secs
     double audio_clock;  // current playing clock
@@ -59,6 +66,12 @@ typedef struct AudioState {
     int audio_volume;
     int muted;
     int paused;
+    int stopped;
+    int quit;
+    int seek_req;
+    int64_t seek_pos;
+    int seek_flags;
+    int read_thread_abord;
 } AudioState;
 
 typedef struct CPlayer {
