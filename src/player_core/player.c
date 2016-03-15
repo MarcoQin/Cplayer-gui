@@ -7,7 +7,7 @@ int no_more_data_in_the_queue = 0; // if there are no more data in the queue, we
 CPlayer *global_cplayer_ctx = NULL;
 AVPacket flush_pkt;
 
-static bool g_ffmpeg_global_inited = false;
+static int g_ffmpeg_global_inited = false;
 
 static void dump_metadata(void *ctx, AVDictionary *m, const char *indent) {
     if (m && !(av_dict_count(m) == 1 && av_dict_get(m, "language", NULL, 0))) {
@@ -308,12 +308,16 @@ static int audio_open(CPlayer *arg) {
     wanted_spec.callback = audio_callback;
     wanted_spec.userdata = cp;
 
-    av_log(NULL, AV_LOG_WARNING, "SDL_OpenAudio (%d channels, %d Hz): %s\n",wanted_spec.channels, wanted_spec.freq, SDL_GetError());
+    /* av_log(NULL, AV_LOG_WARNING, "SDL_OpenAudio (%d channels, %d Hz): %s\n",wanted_spec.channels, wanted_spec.freq, SDL_GetError()); */
 
+    if (is->audio_opend) {
+        SDL_CloseAudio();
+    }
     if (SDL_OpenAudio(&wanted_spec, &spec) < 0) {
         fprintf(stderr, "SDL_OpenAudio: %s\n", SDL_GetError());
         return -1;
     }
+    is->audio_opend = 1;
 
     SDL_PauseAudio(0);
     return 0;
@@ -348,22 +352,14 @@ static int read_thread(void *arg) {
         return -1;
 
     // Get metadata and others
-    dump_metadata(NULL, is->format_ctx->metadata, "    ");
+    /* dump_metadata(NULL, is->format_ctx->metadata, "    "); */
     /* av_dump_format(is->format_ctx, 0, cp->input_filename, 0); */
 
     if (is->format_ctx->duration != AV_NOPTS_VALUE) {
-        int hours, mins, secs, us;
+        int secs;
         int64_t duration = is->format_ctx->duration + (is->format_ctx->duration <= INT64_MAX - 5000 ? 5000 : 0);
         secs  = duration / AV_TIME_BASE;
         is->duration = secs;
-        av_log(NULL, AV_LOG_INFO, "seconds: %d\n", secs);
-        us    = duration % AV_TIME_BASE;
-        mins  = secs / 60;
-        secs %= 60;
-        hours = mins / 60;
-        mins %= 60;
-        av_log(NULL, AV_LOG_INFO, "%02d:%02d:%02d.%02d\n", hours, mins, secs,
-                (100 * us) / AV_TIME_BASE);
     }
 
     is->audio_codec_ctx_orig = is->format_ctx->streams[is->audio_stream_index]->codec;
@@ -440,7 +436,7 @@ static int read_thread(void *arg) {
 
 static void stream_close(CPlayer *cp) {
     AudioState *is = cp->is;
-    av_log(NULL, AV_LOG_WARNING, "wait for read_tid\n");
+    /* av_log(NULL, AV_LOG_WARNING, "wait for read_tid\n"); */
     /* SDL_WaitThread(is->read_tid, NULL); */
     audio_close();
     if (is->audio_codec_ctx_orig) {
@@ -524,6 +520,7 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
     q->nb_packets++;
     q->size += pkt1->pkt.size;
     // Send signal to queue get function
+    no_more_data_in_the_queue = 0;
     SDL_CondSignal(q->cond);
 
     SDL_UnlockMutex(q->mutex);
@@ -561,7 +558,6 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block) {
             break;
         } else {
             if (q->nb_packets <= 0) {
-                printf("there's no more packets in the queue\n");
                 no_more_data_in_the_queue = 1;
                 ret = -1;
                 break;
@@ -597,12 +593,22 @@ void cp_seek_audio(double percent) {
     int incr = 0;
     AudioState *is = global_cplayer_ctx->is;
     double seek_target = is->duration * percent / 100;
-    printf("seek percent: %f\n", percent);
-    printf("total sec: %d\n", is->duration);
-    printf("seek target: %f\n", seek_target);
     double current_pos = is->audio_clock;
     incr = seek_target > current_pos ? 1 : -1;
     stream_seek(global_cplayer_ctx, (int64_t)(seek_target * AV_TIME_BASE), incr);
+}
+
+void cp_seek_audio_by_sec(int sec) {
+    int incr = 0;
+    incr = sec > 0 ? 1 : -1;
+    AudioState *is = global_cplayer_ctx->is;
+    double pos = is->audio_clock;
+    pos += sec;
+    int duration = is->duration;
+    if (duration < pos || pos < 0) {
+        return;
+    }
+    stream_seek(global_cplayer_ctx, (int64_t)(pos * AV_TIME_BASE), incr);
 }
 
 // return total audio length
@@ -625,6 +631,12 @@ double cp_get_current_time_pos() {
 
 int cp_is_stopping() {
     return no_more_data_in_the_queue;
+}
+
+void cp_free_player() {
+    if (global_cplayer_ctx != NULL) {
+        player_destory(global_cplayer_ctx);
+    }
 }
 
 CPlayer *cp_load_file(const char *filename) {
@@ -662,9 +674,7 @@ CPlayer *cp_load_file(const char *filename) {
         }
         packet_queue_flush(&is->audio_queue);
 
-        printf("packet queue flush\n");
         is->read_tid = SDL_CreateThread(read_thread, "read_thread", cp);
-        printf("read_thread\n");
         if (!is->read_tid) {
             av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError());
             stream_close(cp);

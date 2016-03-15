@@ -33,7 +33,6 @@
 #define MAX_AUDIOQ_SIZE (5 * 16 * 1024)
 
 
-typedef int bool;
 #define true 1
 #define false 0
 
@@ -51,6 +50,7 @@ typedef struct AudioState {
     AVCodecContext *audio_codec_ctx_orig;
     AVCodecContext *audio_codec_ctx;
     AVCodec *audio_codec;
+    int audio_opend;
     PacketQueue audio_queue;
     uint8_t audio_buf[(MAX_AUDIO_FRAME_SIZE * 3) / 2];
     unsigned int audio_buf_size;
