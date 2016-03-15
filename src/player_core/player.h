@@ -16,5 +16,10 @@ static void dump_metadata(void *ctx, AVDictionary *m, const char *indent);
 
 /* control */
 void cp_pause_audio();
+void cp_stop_audio();
+void cp_seek_audio(double percent);
+int cp_get_time_length();
+int cp_is_stopping();
+double cp_get_current_time_pos();
 CPlayer *cp_load_file(const char *filename);
 #endif // PLAYER_H

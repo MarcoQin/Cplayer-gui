@@ -1,12 +1,11 @@
 #include "player.h"
 
-int quit = 0;
-
 int read_thread_abord = 0;
 
-int no_more_data_in_the_queue = 0;
+int no_more_data_in_the_queue = 0; // if there are no more data in the queue, we think the audio is stopping
 
 CPlayer *global_cplayer_ctx = NULL;
+AVPacket flush_pkt;
 
 static bool g_ffmpeg_global_inited = false;
 
@@ -76,6 +75,9 @@ void global_init() {
         fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
         exit(1);
     }
+
+    av_init_packet(&flush_pkt);
+    flush_pkt.data = (unsigned char *)"FLUSH";
 
     g_ffmpeg_global_inited = true;
 }
@@ -206,88 +208,88 @@ static int audio_resampling(AVCodecContext *audio_decode_ctx,
 
 int audio_decode_frame(CPlayer *cp, uint8_t *audio_buf, int buf_size){
     AudioState *is = cp->is;
-    static AVPacket pkt;
-    static uint8_t *audio_pkt_data = NULL;
-    static int audio_pkt_size = 0;
-    static AVFrame frame;
+    AVPacket *pkt = &is->audio_pkt;
 
     int len1, data_size = 0;
 
     for (;;) {
-        while (audio_pkt_size > 0) {
+        while (is->audio_pkt_size > 0) {
             int got_frame = 0;
-            len1 = avcodec_decode_audio4(is->audio_codec_ctx, &frame, &got_frame, &pkt);
+            len1 = avcodec_decode_audio4(is->audio_codec_ctx, &is->audio_frame, &got_frame, pkt);
             if (len1 < 0) {
                 // error, skip frame
-                audio_pkt_size = 0;
+                is->audio_pkt_size = 0;
                 break;
             }
-            audio_pkt_data += len1;
-            audio_pkt_size -= len1;
+            is->audio_pkt_data += len1;
+            is->audio_pkt_size -= len1;
             data_size = 0;
             if (got_frame) {
                 // resamplling and copy buf to audio_buf
-                data_size = audio_resampling(is->audio_codec_ctx, &frame, AV_SAMPLE_FMT_S16, frame.channels, frame.sample_rate, audio_buf);
+                data_size = audio_resampling(is->audio_codec_ctx, &is->audio_frame, AV_SAMPLE_FMT_S16, is->audio_frame.channels, is->audio_frame.sample_rate, audio_buf);
                 assert(data_size <= buf_size);
             }
             if (data_size <= 0) {
                 // No data yet, get more frames
                 continue;
             }
-            int n = 2 * frame.channels;
-            is->audio_clock += (double)data_size / (double)(n * frame.sample_rate);
+            int n = 2 * is->audio_frame.channels;
+            is->audio_clock += (double)data_size / (double)(n * is->audio_frame.sample_rate);
             // We have data, return it and come back for more later
             return data_size;
         }
 
-        if (pkt.data) {
-            av_packet_unref(&pkt);
+        if (pkt->data) {
+            av_packet_unref(pkt);
         }
 
-        if (quit) {
+        if (is->quit) {
             return -1;
         }
 
-        if (packet_queue_get(&is->audio_queue, &pkt, 1) < 0) {
+        if (packet_queue_get(&is->audio_queue, pkt, 1) < 0) {
             return -1;
         }
-        audio_pkt_data = pkt.data;
-        audio_pkt_size = pkt.size;
+
+        if (pkt->data == flush_pkt.data) {
+            avcodec_flush_buffers(is->audio_codec_ctx);
+            continue;
+        }
+
+        is->audio_pkt_data = pkt->data;
+        is->audio_pkt_size = pkt->size;
         /* if update, update the audio clock w/pts */
-        if (pkt.pts != AV_NOPTS_VALUE) {
-            is->audio_clock = av_q2d(is->audio_codec_ctx->pkt_timebase) * pkt.pts;
+        if (pkt->pts != AV_NOPTS_VALUE) {
+            is->audio_clock = av_q2d(is->audio_codec_ctx->pkt_timebase) * pkt->pts;
         }
     }
 }
 
 void audio_callback(void *userdata, Uint8 *stream, int len){
     CPlayer *cp = (CPlayer *)userdata;
+    AudioState *is = cp->is;
     int len1, audio_size;
 
-    static uint8_t audio_buf[(MAX_AUDIO_FRAME_SIZE * 3) / 2];
-    static unsigned int audio_buf_size = 0;  // one time got buffer size
-    static unsigned int audio_buf_index = 0; // one time copied buffer length
-
     while (len > 0) {
-        if (audio_buf_index >= audio_buf_size) {
+        if (is->audio_buf_index >= is->audio_buf_size) {
             // We have already sent all our data; get more */
-            audio_size = audio_decode_frame(cp, audio_buf, sizeof(audio_buf));
+            audio_size = audio_decode_frame(cp, is->audio_buf, sizeof(is->audio_buf));
             if (audio_size < 0) {
                 /* If error, output silence */
-                audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE; // eh...
-                memset(audio_buf, 0, audio_buf_size);
+                is->audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE; // eh...
+                memset(is->audio_buf, 0, is->audio_buf_size);
             } else {
-                audio_buf_size = audio_size;
+                is->audio_buf_size = audio_size;
             }
-            audio_buf_index = 0;
+            is->audio_buf_index = 0;
         }
-        len1 = audio_buf_size - audio_buf_index;
+        len1 = is->audio_buf_size - is->audio_buf_index;
         if(len1 > len)
             len1 = len;
-        memcpy(stream, (uint8_t *)audio_buf + audio_buf_index, len1);
+        memcpy(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1);
         len -= len1;
         stream += len1;
-        audio_buf_index += len1;
+        is->audio_buf_index += len1;
     }
 }
 
@@ -383,15 +385,56 @@ static int read_thread(void *arg) {
 
     avcodec_open2(is->audio_codec_ctx, is->audio_codec, NULL);
     // Read frames and put to audio_queue
-    while (av_read_frame(is->format_ctx, &packet) >= 0 && !read_thread_abord) {
-        // Check wheather this frame is audio frame or not (maby the frame is video frame)
+
+    for (;;) {
+        if (is->quit || is->read_thread_abord) {
+            break;
+        }
+        // handle seek stuff
+        if (is->seek_req) {
+            int stream_index = -1;
+            int64_t seek_target = is->seek_pos;
+
+            if (is->audio_stream_index >= 0) {
+                stream_index = is->audio_stream_index;
+            }
+            if (stream_index >= 0) {
+                seek_target = av_rescale_q(seek_target, AV_TIME_BASE_Q,
+                                           is->format_ctx->streams[stream_index]->time_base);
+            }
+            if (av_seek_frame(is->format_ctx, stream_index, seek_target,
+                              is->seek_flags) < 0) {
+                fprintf(stderr, "seek error\n");
+            } else {
+                if (is->audio_stream_index >= 0) {
+                    packet_queue_flush(&is->audio_queue);
+                    packet_queue_put(&is->audio_queue, &flush_pkt);
+                }
+            }
+            is->seek_req = 0;
+        }
+
+        if (is->audio_queue.size > MAX_AUDIOQ_SIZE) {
+            SDL_Delay(10);
+            continue;
+        }
+
+        if (av_read_frame(is->format_ctx, &packet) < 0) {
+            if (!is->read_thread_abord) {
+                SDL_Delay(100); /* no error; wait for user input */
+                continue;
+            } else {
+                is->read_thread_abord = 0;
+                break;
+            }
+        }
+
         if (packet.stream_index == is->audio_stream_index) {
             packet_queue_put(&is->audio_queue, &packet);
         } else {
             av_packet_unref(&packet); // Free the packet
         }
     }
-    read_thread_abord = 0;
     return 0;
 }
 
@@ -433,6 +476,15 @@ AudioState *stream_open(CPlayer *cp, const char *filename) {
         return NULL;
     }
     return is;
+}
+
+void stream_seek(CPlayer *cp, int64_t pos, int flag) {
+    AudioState *is = cp->is;
+    if (!is->seek_req) {
+        is->seek_pos = pos;
+        is->seek_flags = flag < 0 ? AVSEEK_FLAG_BACKWARD : 0;
+        is->seek_req = 1;
+    }
 }
 
 CPlayer *player_create() {
@@ -487,13 +539,14 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block) {
 
     for (;;) {
 
-        if (quit) {
+        if (global_cplayer_ctx->is->quit) {
             ret = -1;
             break;
         }
 
         pkt1 = q->first_pkt;
         if (pkt1) {
+            no_more_data_in_the_queue = 0;
             q->first_pkt = pkt1->next;
             if (!q->first_pkt)
                 q->last_pkt = NULL;
@@ -502,18 +555,14 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block) {
             *pkt = pkt1->pkt;
             av_free(pkt1);
             ret = 1;
-            if (q->nb_packets <= 0) {
-                printf("there's no more packets in the queue\n");
-                no_more_data_in_the_queue = 1;
-            } else {
-                no_more_data_in_the_queue = 0;
-            }
             break;
         } else if (!block) {
             ret = 0;
             break;
         } else {
-            if (no_more_data_in_the_queue) {
+            if (q->nb_packets <= 0) {
+                printf("there's no more packets in the queue\n");
+                no_more_data_in_the_queue = 1;
                 ret = -1;
                 break;
             }
@@ -528,6 +577,54 @@ void cp_pause_audio() {
     AudioState *is = global_cplayer_ctx->is;
     is->paused = !is->paused;
     SDL_PauseAudio(is->paused);
+}
+
+void cp_stop_audio() {
+    AudioState *is = global_cplayer_ctx->is;
+    if (!is->stopped) {
+        is->stopped = !is->stopped;
+        cp_pause_audio();
+        packet_queue_flush(&is->audio_queue);
+        is->duration = 0;
+        is->audio_clock = 0;
+    }
+}
+
+void cp_seek_audio(double percent) {
+    if (percent < 0 || percent > 100){
+        return;
+    }
+    int incr = 0;
+    AudioState *is = global_cplayer_ctx->is;
+    double seek_target = is->duration * percent / 100;
+    printf("seek percent: %f\n", percent);
+    printf("total sec: %d\n", is->duration);
+    printf("seek target: %f\n", seek_target);
+    double current_pos = is->audio_clock;
+    incr = seek_target > current_pos ? 1 : -1;
+    stream_seek(global_cplayer_ctx, (int64_t)(seek_target * AV_TIME_BASE), incr);
+}
+
+// return total audio length
+int cp_get_time_length() {
+    int duration = 0;
+    if (global_cplayer_ctx != NULL) {
+        duration = global_cplayer_ctx->is->duration;
+    }
+    return duration;
+}
+
+// return current time pos
+double cp_get_current_time_pos() {
+    double pos = 0;
+    if (global_cplayer_ctx != NULL) {
+        pos = global_cplayer_ctx->is->audio_clock;
+    }
+    return pos;
+}
+
+int cp_is_stopping() {
+    return no_more_data_in_the_queue;
 }
 
 CPlayer *cp_load_file(const char *filename) {
@@ -545,12 +642,12 @@ CPlayer *cp_load_file(const char *filename) {
             return NULL;
         }
     } else {
-        read_thread_abord = 1;
-        SDL_Delay(500);
-        read_thread_abord = 0;
         cp = global_cplayer_ctx;
-        cp->input_filename = av_strdup(filename);
         AudioState *is = cp->is;
+        is->read_thread_abord = 1;
+        SDL_Delay(500);
+        is->read_thread_abord = 0;
+        cp->input_filename = av_strdup(filename);
 
         // clean work
         if (is->audio_codec_ctx_orig) {
