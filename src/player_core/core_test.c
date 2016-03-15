@@ -12,17 +12,20 @@ int main(int argc, char *argv[])
 
     // Register all formats and codecs
     global_init();
+    CPlayer *cp = cp_load_file(argv[1]);
+    SDL_Delay(10000);
+    cp = cp_load_file(argv[2]);
 
-    CPlayer *cp = player_create();
-    if (!cp) {
-        printf("player_create error\n");
-        return -1;
-    }
-    AudioState *is = stream_open(cp, argv[1]);
-    if (!is) {
-        printf("is is null\n");
-        return -1;
-    }
+    /* CPlayer *cp = player_create(); */
+    /* if (!cp) { */
+        /* printf("player_create error\n"); */
+        /* return -1; */
+    /* } */
+    /* AudioState *is = stream_open(cp, argv[1]); */
+    /* if (!is) { */
+        /* printf("is is null\n"); */
+        /* return -1; */
+    /* } */
 
     // Dump information about file onto standard error
     /* av_dump_format(format_ctx, 0, argv[1], 0); */
@@ -33,7 +36,6 @@ int main(int argc, char *argv[])
     /* cp_pause_audio(); */
     // Main func block here waiting for audio playback finish
     SDL_WaitEvent(&event);
-    printf("current pos: %f\n", is->audio_clock);
 
     player_destory(cp);
 
