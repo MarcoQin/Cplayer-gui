@@ -2,7 +2,11 @@
 
 int quit = 0;
 
-CPlayer *global_cplayer_ctx;
+int read_thread_abord = 0;
+
+int no_more_data_in_the_queue = 0;
+
+CPlayer *global_cplayer_ctx = NULL;
 
 static bool g_ffmpeg_global_inited = false;
 
@@ -270,7 +274,7 @@ void audio_callback(void *userdata, Uint8 *stream, int len){
             audio_size = audio_decode_frame(cp, audio_buf, sizeof(audio_buf));
             if (audio_size < 0) {
                 /* If error, output silence */
-                audio_buf_size = 1024; // eh...
+                audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE; // eh...
                 memset(audio_buf, 0, audio_buf_size);
             } else {
                 audio_buf_size = audio_size;
@@ -379,7 +383,7 @@ static int read_thread(void *arg) {
 
     avcodec_open2(is->audio_codec_ctx, is->audio_codec, NULL);
     // Read frames and put to audio_queue
-    while (av_read_frame(is->format_ctx, &packet) >= 0) {
+    while (av_read_frame(is->format_ctx, &packet) >= 0 && !read_thread_abord) {
         // Check wheather this frame is audio frame or not (maby the frame is video frame)
         if (packet.stream_index == is->audio_stream_index) {
             packet_queue_put(&is->audio_queue, &packet);
@@ -387,13 +391,14 @@ static int read_thread(void *arg) {
             av_packet_unref(&packet); // Free the packet
         }
     }
+    read_thread_abord = 0;
     return 0;
 }
 
 static void stream_close(CPlayer *cp) {
     AudioState *is = cp->is;
-    av_log(NULL, AV_LOG_DEBUG, "wait for read_tid\n");
-    SDL_WaitThread(is->read_tid, NULL);
+    av_log(NULL, AV_LOG_WARNING, "wait for read_tid\n");
+    /* SDL_WaitThread(is->read_tid, NULL); */
     audio_close();
     if (is->audio_codec_ctx_orig) {
         avcodec_close(is->audio_codec_ctx_orig);
@@ -497,11 +502,21 @@ int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block) {
             *pkt = pkt1->pkt;
             av_free(pkt1);
             ret = 1;
+            if (q->nb_packets <= 0) {
+                printf("there's no more packets in the queue\n");
+                no_more_data_in_the_queue = 1;
+            } else {
+                no_more_data_in_the_queue = 0;
+            }
             break;
         } else if (!block) {
             ret = 0;
             break;
         } else {
+            if (no_more_data_in_the_queue) {
+                ret = -1;
+                break;
+            }
             SDL_CondWait(q->cond, q->mutex);
         }
     }
@@ -513,4 +528,51 @@ void cp_pause_audio() {
     AudioState *is = global_cplayer_ctx->is;
     is->paused = !is->paused;
     SDL_PauseAudio(is->paused);
+}
+
+CPlayer *cp_load_file(const char *filename) {
+    CPlayer *cp = NULL;
+    if (global_cplayer_ctx == NULL) {
+        global_init();
+        cp = player_create();
+        if (!cp) {
+            printf("player_create error\n");
+            return NULL;
+        }
+        AudioState *is = stream_open(cp, filename);
+        if (!is) {
+            printf("is is null\n");
+            return NULL;
+        }
+    } else {
+        read_thread_abord = 1;
+        SDL_Delay(500);
+        read_thread_abord = 0;
+        cp = global_cplayer_ctx;
+        cp->input_filename = av_strdup(filename);
+        AudioState *is = cp->is;
+
+        // clean work
+        if (is->audio_codec_ctx_orig) {
+            avcodec_close(is->audio_codec_ctx_orig);
+        }
+        if (is->audio_codec_ctx) {
+            avcodec_close(is->audio_codec_ctx);
+        }
+        if (is->format_ctx) {
+            avformat_close_input(&is->format_ctx);
+            is->format_ctx = NULL;
+        }
+        packet_queue_flush(&is->audio_queue);
+
+        printf("packet queue flush\n");
+        is->read_tid = SDL_CreateThread(read_thread, "read_thread", cp);
+        printf("read_thread\n");
+        if (!is->read_tid) {
+            av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError());
+            stream_close(cp);
+            return NULL;
+        }
+    }
+    return cp;
 }
