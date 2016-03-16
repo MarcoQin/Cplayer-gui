@@ -33,8 +33,12 @@
 #define MAX_AUDIOQ_SIZE (5 * 16 * 1024)
 
 
+#ifndef true
 #define true 1
+#endif
+#ifndef false
 #define false 0
+#endif
 
 typedef struct PacketQueue {
     AVPacketList *first_pkt, *last_pkt;
