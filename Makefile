@@ -2,20 +2,21 @@ CC=gcc
 
 GLIB_COMPILE_RESOURCES=glib-compile-resources
 
-CFLAGS=`pkg-config --cflags gtk+-3.0` -O2
+CFLAGS=`pkg-config --cflags gtk+-3.0` `sdl2-config --cflags` -O2
 
 NAME=cplayer
 
 ODIR=src
 
-LIBS=`pkg-config --libs gtk+-3.0` -lpthread -ldl
+LIBS=`pkg-config --libs gtk+-3.0` `sdl2-config --libs` -lpthread -lavformat -lavcodec -lswscale -lavutil -lswresample -lz -ldl
 
 
 _OBJ = db.o\
 	player_core.o\
 	popen2.o\
 	utils.o\
-	sqlite3/sqlite3.o
+	sqlite3/sqlite3.o\
+	main.o
 
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
@@ -30,11 +31,11 @@ ICON = $(ODIR)/$(NAME).png
 DESKTOP = $(ODIR)/$(NAME).desktop
 
 $(ODIR)/%.o: %.c
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) -c -o $@ $< $(CFLAGS) $(LIBS)
 
 $(NAME): $(OBJ)
 	$(GLIB_COMPILE_RESOURCES) $(RESOURCE_NAME) --target=$(RESOURCE_TARGET) --sourcedir=$(ODIR) --generate-source
-	$(CC) -o $@ $(RESOURCE_TARGET) $(MAIN) $^ $(CFLAGS) $(LIBS)
+	$(CC) -o $@ $(RESOURCE_TARGET) $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
 
