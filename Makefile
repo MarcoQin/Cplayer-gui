@@ -16,6 +16,7 @@ _OBJ = db.o\
 	popen2.o\
 	utils.o\
 	sqlite3/sqlite3.o\
+	player_core/player.o\
 	main.o
 
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
