@@ -1,5 +1,6 @@
 #ifndef _player_core_h_
 #define _player_core_h_
+#include "player_core/player.h"
 #define PLAYING 1
 #define STOP 0
 #define PAUSE 2
@@ -12,9 +13,8 @@ extern int alive;
 void init_player(char *path);
 void load_song(int id);
 void pause_song();
-void get_time_percent_pos();
-void get_time_pos();
-void get_time_length();
+double get_time_pos();
+int get_time_length();
 void stop_song();
 void seek(double percent);
 void set_volume(int volume);
