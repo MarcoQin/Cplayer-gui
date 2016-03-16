@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include "db.h"
 #include "utils.h"
+#include <pthread.h>
 #include "player_core.h"
 
 #define DIRECTION_DOWN 1
@@ -28,93 +29,62 @@ enum {
     N_COLUMNS
 };
 
+int watch_dog_started = 0;
 gpointer global_signal_handle_tree_view;
 gpointer global_signal_handel_user_data;
 gint global_slider_value;
 
 pid_t parent_pid, child_pid, wpid;
 
-void watch_dog();
+void start_watch_dog();
 void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data);
 
-void stopping(int signum) {
+void stopping() {
     if (playing_status != STOP) {
-        outfp = 0;
         tree_view_scroll(global_signal_handle_tree_view, DIRECTION_DOWN, global_signal_handel_user_data);
-        watch_dog();
+        start_watch_dog();
     }
 }
 
-void watch_dog() {
-    if (child_pid) {
-        kill(child_pid, SIGKILL);
-    }
-    child_pid = fork();
-    if (child_pid < 0)
-        exit(1);
-    else if (child_pid == 0) {
-        // child process
-        int code = 0;
-        parent_pid = getppid();
-        usleep(100000);
-        while (1) {
-            code = kill(mplayer_pid, 0);
-            if (code == 0) { // alive
-                usleep(50000);
-            } else {
-                kill(parent_pid, SIGUSR1); // custom signal
-                break;
-            }
+void *watch_dog(void *arg) {
+    sleep(1);
+    while (1){
+        if (!cp_is_stopping()) {
+            sleep(1);
+            continue;
+        } else {
+            printf("**********************stopping!!!!!***************\n");
+            stopping();
+            printf("******************stopped!!sleep 3 s!!!**********\n");
+            sleep(3);
+            printf("*******************sleeped enough ************\n");
+            continue;
         }
-        exit(1);
+    }
+}
+
+void start_watch_dog() {
+    if (watch_dog_started) {
+        return;
     } else {
-        // parent process
-        signal(SIGCHLD, SIG_IGN);
-    }
-}
-
-float get_tick_state(void tick_func(void), int offset) {
-    if (alive == ALIVE && is_alive() == ALIVE && playing_status == PLAYING && outfp != 0) {
-        tick_func();
-        /* sleep 0.3s for waiting infp wrote completed and outfp is ready */
-        g_usleep(300000);
-        while(1) {
-            char buffer[100];
-            int nbytes = read(outfp, buffer, sizeof(buffer));
-            if (nbytes == -1) {
-                break;
-            }
-            int i = index_of(buffer, "Exit");
-            if (i != -1) {
-                break;
-            }
-            i = index_of(buffer, "ANS");
-            if(i != -1) {
-                i += offset;
-                char output_num[nbytes - i];
-                int num_start = 0;
-                while (buffer[i] != '\n') {
-                    output_num[num_start]  = buffer[i];
-                    i++;
-                    num_start ++;
-                }
-                return atof(output_num);
-                break;
-            }
+        printf("********************************create_watchdog*********************\n");
+        pthread_t tid;
+        int err = pthread_create(&tid, NULL, &watch_dog, NULL);
+        if (err != 0) {
+            fprintf(stderr, "can't create thread\n");
+            free_player();
+            exit(1);
         }
+        watch_dog_started = 1;
     }
-    return 0;
 }
 
 static gpointer update_tick(gpointer user_data) {
     GObject *slider_adjustment = g_object_get_data(user_data, "slider_adjustment");
     GObject *time_label = g_object_get_data(user_data, "time_label");
-    int percent_pos_length = strlen("ANS_PERCENT_POSITION=");
-    int ans_length = strlen("ANS_LENGTH=");
-    int ans_time_position = strlen("ANS_TIME_POSITION=");
     int percent_pos = 0;
-    float time_length = 0;
-    float current_pos = 0;
+    double time_length = 0;
+    double current_pos = 0;
     char *format_time_str = (char *)malloc(15);
     while(1) {
         if (playing_status == STOP) {
@@ -124,27 +94,22 @@ static gpointer update_tick(gpointer user_data) {
             g_usleep(200000);
             continue;
         }
-        if (outfp != 0) {
-            if (playing_status == PLAYING) {
-                /* current time pos */
-                current_pos = get_tick_state(get_time_pos, ans_time_position);
-                /* get time percent pos */
-                percent_pos = (int)get_tick_state(get_time_percent_pos, percent_pos_length);
-                /* get time length */
-                time_length = get_tick_state(get_time_length, ans_length);
+        if (playing_status == PLAYING) {
+            /* get time length */
+            time_length = (double)get_time_length();
+            /* current time pos */
+            current_pos = get_time_pos();
+            /* get time percent pos */
+            percent_pos = current_pos * 100 / time_length;
 
-                song_time_to_str(format_time_str, time_length, current_pos);
-                gtk_label_set_text(GTK_LABEL(time_label), format_time_str);
+            song_time_to_str(format_time_str, time_length, current_pos);
+            gtk_label_set_text(GTK_LABEL(time_label), format_time_str);
 
-                global_slider_value = percent_pos;
-                gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
-                g_usleep(100000);
-            } else {
-                /* pause or some thing else */
-                g_usleep(200000);
-            }
+            global_slider_value = percent_pos;
+            gtk_adjustment_set_value(GTK_ADJUSTMENT(slider_adjustment), percent_pos);
+            g_usleep(100000);
         } else {
-            /* outfp is not ready */
+            /* pause or some thing else */
             g_usleep(200000);
         }
     }
@@ -300,7 +265,7 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
         GObject *play_button = g_object_get_data(user_data, "play_button");
         GObject *state_label = g_object_get_data(user_data, "state_label");
         load_song(id);
-        watch_dog();
+        start_watch_dog();
         update_play_button_label(GTK_BUTTON(play_button));
         update_play_state_label(user_data, name);
         g_free(name);
@@ -368,7 +333,7 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
             }
 
             load_song(id);
-            watch_dog();
+            start_watch_dog();
             GObject *play_button = g_object_get_data(user_data, "play_button");
             GObject *state_label = g_object_get_data(user_data, "state_label");
             update_play_button_label(GTK_BUTTON(play_button));
@@ -589,7 +554,6 @@ int main(int argc, char *argv[]) {
     /* handel signal */
     global_signal_handle_tree_view = tree_view;
     global_signal_handel_user_data = user_data;
-    signal(SIGUSR1, stopping);
     /* end */
 
     /* update tick thread */
