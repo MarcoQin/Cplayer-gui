@@ -14,7 +14,19 @@
 #define DIRECTION_UP 0
 #define DIRECTION_CURRENT 2 /* not move the cursor, just play first song */
 
-enum { COL_INDEX = 0, COL_ID, COL_NAME, COL_PATH, N_COLUMNS };
+enum {
+    COL_INDEX = 0,
+    COL_ID,
+    COL_NAME,
+    COL_PATH,
+    COL_TITLE,
+    COL_ALBUM,
+    COL_ARTIST,
+    COL_GENRE,
+    COL_TRACK,
+    COL_DATE,
+    N_COLUMNS
+};
 
 gpointer global_signal_handle_tree_view;
 gpointer global_signal_handel_user_data;
@@ -156,9 +168,20 @@ void add_song(gpointer file_path, gpointer liststore) {
     gint n_rows = gtk_tree_model_iter_n_children(liststore, NULL);
     gtk_list_store_append(liststore, &iter);
     char *file_name = extract_file_name((char *)file_path);
-    gint id = db_insert_song(file_name, (char *)file_path);
-    gtk_list_store_set(liststore, &iter, COL_INDEX, (n_rows + 1), COL_NAME,
-                       (gchar *)file_name, COL_PATH, (gchar *)file_path, COL_ID, id, -1);
+    SongInfo *info = (SongInfo *)malloc(sizeof(SongInfo));
+    info->name = file_name;
+    info->path = (char *)file_path;
+
+    int state = extract_meta_data((char *)file_path, info);
+
+    gint id = db_insert_song(info);
+
+    gtk_list_store_set(GTK_LIST_STORE(liststore), &iter,
+                        COL_ID, id, COL_NAME, info->name,
+                        COL_PATH, info->path, COL_TITLE, info->title,
+                        COL_ALBUM, info->album, COL_ARTIST, info->artist,
+                        COL_GENRE, info->genre, COL_TRACK, info->track,
+                        COL_DATE, info->date, COL_INDEX, (n_rows +1), -1);
     free(file_name);
 }
 
@@ -266,8 +289,13 @@ void song_list_tree_view_row_activated(GtkTreeView *tree_view,
     if (gtk_tree_model_get_iter(model, &iter, path)) {
         gchar *name, *file_path;
         gint id;
-        gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name, COL_PATH,
+        gtk_tree_model_get(model, &iter, COL_ID, &id, COL_TITLE, &name, COL_PATH,
                            &file_path, -1);
+
+        if (!name) {
+            gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name, COL_PATH,
+                            &file_path, -1);
+        }
 
         GObject *play_button = g_object_get_data(user_data, "play_button");
         GObject *state_label = g_object_get_data(user_data, "state_label");
@@ -332,8 +360,12 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data) {
             gchar *name, *file_path;
             gint id;
             gtk_tree_model_get_iter(GTK_TREE_MODEL(model), &iter, path);
-            gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name,
+            gtk_tree_model_get(model, &iter, COL_ID, &id, COL_TITLE, &name,
                                COL_PATH, &file_path, -1);
+            if (!name) {
+                gtk_tree_model_get(model, &iter, COL_ID, &id, COL_NAME, &name,
+                                COL_PATH, &file_path, -1);
+            }
 
             load_song(id);
             watch_dog();
@@ -357,11 +389,26 @@ void init_tree_view_data(gpointer liststore) {
     gint id;
     gchar *name;
     gchar *path;
+    gchar *title;
+    gchar *album;
+    gchar *artist;
+    gchar *genre;
+    gchar *track;
+    gchar *date;
     GtkTreeIter iter;
     rc = db_load_songs(&result, &nrow, &ncol, &errmsg);
     if (rc == 0) {
         index = ncol;
         for (i = 0; i < nrow; i++) {
+            name = NULL;
+            path = NULL;
+            title = NULL;
+            album = NULL;
+            artist = NULL;
+            genre = NULL;
+            track = NULL;
+            date = NULL;
+
             for (j = 0; j < ncol; j++) {
                 if (j == 0)
                     id = atoi(result[index]);
@@ -369,10 +416,27 @@ void init_tree_view_data(gpointer liststore) {
                     name = result[index];
                 if (j == 2)
                     path = result[index];
+                if (j == 3)
+                    title = result[index];
+                if (j == 4)
+                    album = result[index];
+                if (j == 5)
+                    artist = result[index];
+                if (j == 6)
+                    genre = result[index];
+                if (j == 7)
+                    track = result[index];
+                if (j == 8)
+                    date = result[index];
                 index ++;
             }
             gtk_list_store_append(GTK_LIST_STORE(liststore), &iter);
-            gtk_list_store_set(GTK_LIST_STORE(liststore), &iter, COL_ID, id, COL_NAME, name, COL_PATH, path, COL_INDEX, (i+1), -1);
+            gtk_list_store_set(GTK_LIST_STORE(liststore), &iter,
+                               COL_ID, id, COL_NAME, name,
+                               COL_PATH, path, COL_TITLE, title,
+                               COL_ALBUM, album, COL_ARTIST, artist,
+                               COL_GENRE, genre, COL_TRACK, track,
+                               COL_DATE, date, COL_INDEX, (i+1), -1);
         }
         sqlite3_free_table(result);
     }
