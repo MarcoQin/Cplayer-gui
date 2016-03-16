@@ -31,12 +31,18 @@ int db_init(const char *path) {
     }
     static const char *create_query = "create table if not exists songs ("
                                       "   id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                                      "   name VARCHAR(255) NOT NULL,"
+                                      "   name VARCHAR(512) NOT NULL,"
                                       "   path VARCHAR(512),"
+                                      "   title VARCHAR(512),"
+                                      "   album VARCHAR(512),"
+                                      "   artist VARCHAR(512),"
+                                      "   genre VARCHAR(64),"
+                                      "   track VARCHAR(64),"
+                                      "   date VARCHAR(64),"
                                       "   is_playing INTEGER(2) DEFAULT 0"
                                       ");";
-    static const char *insert_song_query = "insert into songs (name, path) "
-                                           "values (?, ?);";
+    static const char *insert_song_query = "insert into songs (name, path, title, album, artist, genre, track, date) "
+                                           "values (?, ?, ?, ?, ?, ?, ?, ?);";
     static const char *get_song_path_query =
         "select path from songs where id = ?;";
     static const char *get_song_name_query =
@@ -112,13 +118,27 @@ void db_close() {
     sqlite3_close(db);
 }
 
-sqlite3_int64 db_insert_song(char *name, char *path) {
+
+sqlite3_int64 db_insert_song(SongInfo *info) {
     if (!db_enabled) {
         return 0;
     }
     sqlite3_reset(insert_song_stmt);
-    sqlite3_bind_text(insert_song_stmt, 1, name, -1, NULL);
-    sqlite3_bind_text(insert_song_stmt, 2, path, -1, NULL);
+    sqlite3_clear_bindings(insert_song_stmt);
+    sqlite3_bind_text(insert_song_stmt, 1, info->name, -1, NULL);
+    sqlite3_bind_text(insert_song_stmt, 2, info->path, -1, NULL);
+    if (info->title != NULL)
+        sqlite3_bind_text(insert_song_stmt, 3, info->title, -1, NULL);
+    if (info->album != NULL)
+        sqlite3_bind_text(insert_song_stmt, 4, info->album, -1, NULL);
+    if (info->artist != NULL)
+        sqlite3_bind_text(insert_song_stmt, 5, info->artist, -1, NULL);
+    if (info->genre != NULL)
+        sqlite3_bind_text(insert_song_stmt, 6, info->genre, -1, NULL);
+    if (info->track != NULL)
+        sqlite3_bind_text(insert_song_stmt, 7, info->track, -1, NULL);
+    if (info->date != NULL)
+        sqlite3_bind_text(insert_song_stmt, 8, info->date, -1, NULL);
     sqlite3_step(insert_song_stmt);
     return sqlite3_last_insert_rowid(db);
 }
@@ -203,6 +223,6 @@ int get_next_or_previous_song_id(int type) {
 }
 
 int db_load_songs(char ***result, int *nrow, int *ncolumn, char **pzErrmsg) {
-    return sqlite3_get_table(db, "select id, name, path from songs", result, nrow,
+    return sqlite3_get_table(db, "select id, name, path, title, album, artist, genre, track, date from songs", result, nrow,
                              ncolumn, pzErrmsg);
 }
