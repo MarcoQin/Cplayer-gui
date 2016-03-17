@@ -1,15 +1,26 @@
 # Cplayer-gui
 Cplayer with GTK+ GUI.
 
-####Requirments:
-
-- **mplayer:**
-    - ubuntu: `sudo apt-get install mplayer`
-    - others: [official site](http://www.mplayerhq.hu/design7/dload.html)
-
 ####Lib Dependencies:
 
 - **GTK+-3.0** `sudo apt-get install libgtk-3-dev`
+- **SDL2.0**
+- **ffmpeg:**
+    - make and install the latest ffmpeg:
+        - (maby need: sudo apt-get install yasm)
+        - ./configure --enable-shared
+        - make
+        - sudo make install
+        - if can't find lib*.so:
+
+            sudo vi /etc/ld.so.conf
+            add follow lines:
+                include ld.so.conf.d/*.conf
+                /usr/local/libevent-1.4.14b/lib
+                /usr/local/lib
+
+            then:
+                sudo ldconfig
 
 ####Compile and install:
 
