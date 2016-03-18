@@ -358,10 +358,30 @@ static int read_thread(void *arg) {
     AudioState *is = cp->is;
     AVPacket packet;
 
+start:
     // prepare clean stuff
     is->audio_buf_index = 0;
     is->audio_buf_size = 0;
     is->audio_pkt_size = 0;
+    // clean work
+    if (is->audio_codec_ctx_orig) {
+        printf("before close audio_codec_ctx_orig\n");
+        avcodec_close(is->audio_codec_ctx_orig);
+        is->audio_codec_ctx_orig = NULL;
+        printf("after close audio_codec_ctx_orig\n");
+    }
+    if (is->audio_codec_ctx) {
+        printf("before close audio_codec_ctx\n");
+        avcodec_close(is->audio_codec_ctx);
+        is->audio_codec_ctx = NULL;
+        printf("after close audio_codec_ctx\n");
+    }
+    if (is->format_ctx) {
+        printf("before close format_ctx\n");
+        avformat_close_input(&is->format_ctx);
+        is->format_ctx = NULL;
+        printf("after close format_ctx\n");
+    }
 
     // Open audio file
     printf("before avformat_open_input\n");
@@ -442,8 +462,15 @@ static int read_thread(void *arg) {
 
     printf("before for loop\n");
     for (;;) {
-        if (is->quit || is->read_thread_abord) {
+        if (is->quit) {
             break;
+        }
+        if (is->read_thread_abord) {
+            is->read_thread_abord = 0;
+            printf("before flush queue\n");
+            packet_queue_flush(&is->audio_queue);
+            printf("after flush queue\n");
+            goto start;
         }
         // handle seek stuff
         if (is->seek_req) {
@@ -480,7 +507,10 @@ static int read_thread(void *arg) {
                 continue;
             } else {
                 is->read_thread_abord = 0;
-                break;
+                printf("before flush queue\n");
+                packet_queue_flush(&is->audio_queue);
+                printf("after flush queue\n");
+                goto start;
             }
         }
 
@@ -750,46 +780,46 @@ CPlayer *cp_load_file(const char *filename) {
         AudioState *is = cp->is;
         printf("got is\n");
         /* is->audio_opend = 0; */
-        is->read_thread_abord = 1;
-        printf("before wait thread\n");
-        SDL_WaitThread(is->read_tid, NULL);
-        printf("after wait thread\n");
-        is->read_thread_abord = 0;
+        /* printf("before wait thread\n"); */
+        /* SDL_WaitThread(is->read_tid, NULL); */
+        /* printf("after wait thread\n"); */
+        /* is->read_thread_abord = 0; */
         printf("before dump filename\n");
         cp->input_filename = av_strdup(filename);
         printf("after dump filename\n");
+        is->read_thread_abord = 1;
 
         // clean work
-        if (is->audio_codec_ctx_orig) {
-            printf("before close audio_codec_ctx_orig\n");
-            avcodec_close(is->audio_codec_ctx_orig);
-            is->audio_codec_ctx_orig = NULL;
-            printf("after close audio_codec_ctx_orig\n");
-        }
-        if (is->audio_codec_ctx) {
-            printf("before close audio_codec_ctx\n");
-            avcodec_close(is->audio_codec_ctx);
-            is->audio_codec_ctx = NULL;
-            printf("after close audio_codec_ctx\n");
-        }
-        if (is->format_ctx) {
-            printf("before close format_ctx\n");
-            avformat_close_input(&is->format_ctx);
-            is->format_ctx = NULL;
-            printf("after close format_ctx\n");
-        }
-        printf("before flush queue\n");
-        packet_queue_flush(&is->audio_queue);
-        printf("after flush queue\n");
+        /* if (is->audio_codec_ctx_orig) { */
+            /* printf("before close audio_codec_ctx_orig\n"); */
+            /* avcodec_close(is->audio_codec_ctx_orig); */
+            /* is->audio_codec_ctx_orig = NULL; */
+            /* printf("after close audio_codec_ctx_orig\n"); */
+        /* } */
+        /* if (is->audio_codec_ctx) { */
+            /* printf("before close audio_codec_ctx\n"); */
+            /* avcodec_close(is->audio_codec_ctx); */
+            /* is->audio_codec_ctx = NULL; */
+            /* printf("after close audio_codec_ctx\n"); */
+        /* } */
+        /* if (is->format_ctx) { */
+            /* printf("before close format_ctx\n"); */
+            /* avformat_close_input(&is->format_ctx); */
+            /* is->format_ctx = NULL; */
+            /* printf("after close format_ctx\n"); */
+        /* } */
+        /* printf("before flush queue\n"); */
+        /* packet_queue_flush(&is->audio_queue); */
+        /* printf("after flush queue\n"); */
 
-        printf("before create thread\n");
-        is->read_tid = SDL_CreateThread(read_thread, "read_thread", cp);
-        if (!is->read_tid) {
-            av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError());
-            stream_close(cp);
-            return NULL;
-        }
-        printf("after create thread\n");
+        /* printf("before create thread\n"); */
+        /* is->read_tid = SDL_CreateThread(read_thread, "read_thread", cp); */
+        /* if (!is->read_tid) { */
+            /* av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError()); */
+            /* stream_close(cp); */
+            /* return NULL; */
+        /* } */
+        /* printf("after create thread\n"); */
     }
     printf("before return cp\n");
     return cp;

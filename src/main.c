@@ -147,7 +147,7 @@ void add_song(gpointer file_path, gpointer liststore) {
                         COL_ALBUM, info->album, COL_ARTIST, info->artist,
                         COL_GENRE, info->genre, COL_TRACK, info->track,
                         COL_DATE, info->date, COL_INDEX, (n_rows +1), -1);
-    free(file_name);
+    g_free(file_name);
 }
 
 void file_activated(GtkFileChooser *chooser, gpointer liststore) {
