@@ -2,7 +2,7 @@ CC=gcc
 
 GLIB_COMPILE_RESOURCES=glib-compile-resources
 
-CFLAGS=`pkg-config --cflags gtk+-3.0` `sdl2-config --cflags` -O2
+CFLAGS=-g `pkg-config --cflags gtk+-3.0` `sdl2-config --cflags` -O0
 
 NAME=cplayer
 
@@ -41,7 +41,7 @@ $(NAME): $(OBJ)
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o $(NAME) $(RESOURCE_TARGET)
+	rm -f $(ODIR)/*.o $(ODIR)/player_core/*.o $(NAME) $(RESOURCE_TARGET)
 
 install:
 	cp $(NAME) /usr/bin/
