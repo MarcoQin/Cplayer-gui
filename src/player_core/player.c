@@ -9,31 +9,6 @@ AVPacket flush_pkt;
 
 static int g_ffmpeg_global_inited = false;
 
-static void dump_metadata(void *ctx, AVDictionary *m, const char *indent) {
-    if (m && !(av_dict_count(m) == 1 && av_dict_get(m, "language", NULL, 0))) {
-        AVDictionaryEntry *tag = NULL;
-
-        av_log(ctx, AV_LOG_INFO, "%sMetadata:\n", indent);
-        while ((tag = av_dict_get(m, "", tag, AV_DICT_IGNORE_SUFFIX)))
-            if (strcmp("language", tag->key)) {
-                const char *p = tag->value;
-                av_log(ctx, AV_LOG_INFO,
-                        "%s  %-16s: ", indent, tag->key);
-                while (*p) {
-                    char tmp[256];
-                    size_t len = strcspn(p, "\x8\xa\xb\xc\xd");
-                    av_strlcpy(tmp, p, FFMIN(sizeof(tmp), len+1));
-                    av_log(ctx, AV_LOG_INFO, "%s", tmp);
-                    p += len;
-                    if (*p == 0xd) av_log(ctx, AV_LOG_INFO, " ");
-                    if (*p == 0xa) av_log(ctx, AV_LOG_INFO, "\n%s  %-16s: ", indent, "");
-                    if (*p) p++;
-                }
-                av_log(ctx, AV_LOG_INFO, "\n");
-            }
-    }
-}
-
 void packet_queue_init(PacketQueue *q) {
     memset(q, 0, sizeof(PacketQueue));
     q->mutex = SDL_CreateMutex();
@@ -45,7 +20,6 @@ static void packet_queue_flush(PacketQueue *q) {
     SDL_LockMutex(q->mutex);
     for (pkt = q->first_pkt; pkt != NULL; pkt=pkt1) {
         pkt1 = pkt->next;
-        /* av_free_packet(&pkt->pkt); */
         av_packet_unref(&pkt->pkt);
         av_free(pkt);
     }
@@ -89,7 +63,6 @@ static int audio_resampling(AVCodecContext *audio_decode_ctx,
                             int out_sample_rate,
                             uint8_t *out_buf)
 {
-    printf("start resampling\n");
     SwrContext *swr_ctx = NULL;
     int ret = 0;
     int64_t in_channel_layout = audio_decode_ctx->channel_layout;
@@ -204,12 +177,10 @@ static int audio_resampling(AVCodecContext *audio_decode_ctx,
     if (swr_ctx) {
         swr_free(&swr_ctx);
     }
-    printf("end resampling\n");
     return resampled_data_size;
 }
 
 int audio_decode_frame(CPlayer *cp, uint8_t *audio_buf, int buf_size){
-    printf("start decode frame\n");
     AudioState *is = cp->is;
     AVPacket *pkt = &is->audio_pkt;
 
@@ -261,30 +232,24 @@ int audio_decode_frame(CPlayer *cp, uint8_t *audio_buf, int buf_size){
 
         is->audio_pkt_data = pkt->data;
         is->audio_pkt_size = pkt->size;
-        /* if update, update the audio clock w/pts */
+        // if update, update the audio clock w/pts
         if (pkt->pts != AV_NOPTS_VALUE) {
             is->audio_clock = av_q2d(is->audio_codec_ctx->pkt_timebase) * pkt->pts;
         }
     }
-    printf("end decode frame\n");
 }
 
 void audio_callback(void *userdata, Uint8 *stream, int len){
-    printf("start callback\n");
     CPlayer *cp = (CPlayer *)userdata;
     AudioState *is = cp->is;
     int len1, audio_size;
 
     while (len > 0) {
-        printf("len > 0\n");
         if (is->audio_buf_index >= is->audio_buf_size) {
             // We have already sent all our data; get more */
-            printf("before audio_decode_frame\n");
             audio_size = audio_decode_frame(cp, is->audio_buf, sizeof(is->audio_buf));
-            printf("after audio_decode_frame\n");
             if (audio_size < 0) {
-                /* If error, output silence */
-                printf("audio_size < 0 memset silence\n");
+                // If error, output silence
                 is->audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE; // eh...
                 memset(is->audio_buf, 0, is->audio_buf_size);
             } else {
@@ -296,24 +261,17 @@ void audio_callback(void *userdata, Uint8 *stream, int len){
         if(len1 > len)
             len1 = len;
         if (!is->muted && is->audio_volume == SDL_MIX_MAXVOLUME) {
-            printf("start normal memcpy stream audio buf\n");
             memcpy(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1);
-            printf("end normal memcpy stream audio buf\n");
         }
         else {
-            printf("start SDL_MixAudio\n");
             memset(stream, is->silence_buf[0], len1);
             if (!is->muted)
                 SDL_MixAudio(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1, is->audio_volume);
-            printf("end SDL_MixAudio\n");
         }
         len -= len1;
-        printf("before stream += len1\n");
         stream += len1;
-        printf("after stream += len1\n");
         is->audio_buf_index += len1;
     }
-    printf("end callback\n");
 }
 
 
@@ -331,8 +289,6 @@ static int audio_open(CPlayer *arg) {
     wanted_spec.callback = audio_callback;
     wanted_spec.userdata = cp;
 
-    /* av_log(NULL, AV_LOG_WARNING, "SDL_OpenAudio (%d channels, %d Hz): %s\n",wanted_spec.channels, wanted_spec.freq, SDL_GetError()); */
-
     if (is->audio_opend) {
         SDL_CloseAudio();
     }
@@ -347,13 +303,11 @@ static int audio_open(CPlayer *arg) {
 }
 
 static int audio_close() {
-    /* SDL_CloseAudio(); */
     SDL_PauseAudio(1);
     return 0;
 }
 
 static int read_thread(void *arg) {
-    printf("start read thread\n");
     CPlayer *cp = (CPlayer *)arg;
     AudioState *is = cp->is;
     AVPacket packet;
@@ -365,41 +319,30 @@ start:
     is->audio_pkt_size = 0;
     // clean work
     if (is->audio_codec_ctx_orig) {
-        printf("before close audio_codec_ctx_orig\n");
         avcodec_close(is->audio_codec_ctx_orig);
         is->audio_codec_ctx_orig = NULL;
-        printf("after close audio_codec_ctx_orig\n");
     }
     if (is->audio_codec_ctx) {
-        printf("before close audio_codec_ctx\n");
         avcodec_close(is->audio_codec_ctx);
         is->audio_codec_ctx = NULL;
-        printf("after close audio_codec_ctx\n");
     }
     if (is->format_ctx) {
-        printf("before close format_ctx\n");
         avformat_close_input(&is->format_ctx);
         is->format_ctx = NULL;
-        printf("after close format_ctx\n");
     }
 
     // Open audio file
-    printf("before avformat_open_input\n");
     if (avformat_open_input(&is->format_ctx, cp->input_filename, NULL, NULL) != 0) {
         printf("avformat_open_input Failed: %s\n", cp->input_filename);
         return -1;  // Error
     }
-    printf("after avformat_open_input\n");
 
     // Retrieve stream information
-    printf("before avformat_find_stream_info\n");
     if (avformat_find_stream_info(is->format_ctx, NULL) < 0) {
         printf("avformat find_stream Failed\n");
         return -1;
     }
-    printf("after avformat_find_stream_info\n");
 
-    printf("before find stream index\n");
     is->audio_stream_index = -1;
     int i;
     for (i = 0; i < is->format_ctx->nb_streams; i++) {
@@ -411,24 +354,18 @@ start:
         printf("audio_stream_index == -1, return -1;\n");
         return -1;
     }
-    printf("after find stream index\n");
 
     // Get metadata and others
-    /* dump_metadata(NULL, is->format_ctx->metadata, "    "); */
-    /* av_dump_format(is->format_ctx, 0, cp->input_filename, 0); */
+    av_dump_format(is->format_ctx, 0, cp->input_filename, 0);
 
-    printf("before get duration\n");
     if (is->format_ctx->duration != AV_NOPTS_VALUE) {
         int secs;
         int64_t duration = is->format_ctx->duration + (is->format_ctx->duration <= INT64_MAX - 5000 ? 5000 : 0);
         secs  = duration / AV_TIME_BASE;
         is->duration = secs;
     }
-    printf("after get duration\n");
 
-    printf("before get audio_codec_ctx_orig\n");
     is->audio_codec_ctx_orig = is->format_ctx->streams[is->audio_stream_index]->codec;
-    printf("after get audio_codec_ctx_orig\n");
     is->audio_codec = avcodec_find_decoder(is->audio_codec_ctx_orig->codec_id);
     if (!is->audio_codec) {
         fprintf(stderr, "Unsupported codec!\n");
@@ -436,40 +373,29 @@ start:
     }
 
     // Copy context
-    printf("before avcodec_alloc_context3\n");
     is->audio_codec_ctx = avcodec_alloc_context3(is->audio_codec);
-    printf("after avcodec_alloc_context3\n");
-    printf("before avcodec_copy_context\n");
     if (avcodec_copy_context(is->audio_codec_ctx, is->audio_codec_ctx_orig) != 0) {
         fprintf(stderr, "Couldn't copy codec context\n");
         return -1;
     }
-    printf("after avcodec_copy_context\n");
 
 
     // Open audio device
-    printf("before audio_open\n");
     audio_open(cp);
-    printf("after audio_open\n");
 
-    printf("before avcodec_open2\n");
     if(avcodec_open2(is->audio_codec_ctx, is->audio_codec, NULL)<0) {
         printf("avcodec_open2 failed\n");
         return -1;
     }
-    printf("after avcodec_open2\n");
-    // Read frames and put to audio_queue
 
-    printf("before for loop\n");
+    // Read frames and put to audio_queue
     for (;;) {
         if (is->quit) {
             break;
         }
         if (is->read_thread_abord) {
             is->read_thread_abord = 0;
-            printf("before flush queue\n");
             packet_queue_flush(&is->audio_queue);
-            printf("after flush queue\n");
             goto start;
         }
         // handle seek stuff
@@ -496,10 +422,10 @@ start:
             is->seek_req = 0;
         }
 
-        /* if (is->audio_queue.size > MAX_AUDIOQ_SIZE) { */
-            /* SDL_Delay(10); */
-            /* continue; */
-        /* } */
+        if (is->audio_queue.size > MAX_AUDIOQ_SIZE) {
+            SDL_Delay(10);
+            continue;
+        }
 
         if (av_read_frame(is->format_ctx, &packet) < 0) {
             if (!is->read_thread_abord) {
@@ -507,9 +433,7 @@ start:
                 continue;
             } else {
                 is->read_thread_abord = 0;
-                printf("before flush queue\n");
                 packet_queue_flush(&is->audio_queue);
-                printf("after flush queue\n");
                 goto start;
             }
         }
@@ -520,14 +444,14 @@ start:
             av_packet_unref(&packet); // Free the packet
         }
     }
-    printf("after for loop\n");
     return 0;
 }
 
 static void stream_close(CPlayer *cp) {
     AudioState *is = cp->is;
-    /* av_log(NULL, AV_LOG_WARNING, "wait for read_tid\n"); */
-    /* SDL_WaitThread(is->read_tid, NULL); */
+    is->quit = 1;
+    av_log(NULL, AV_LOG_WARNING, "wait for read_tid\n");
+    SDL_WaitThread(is->read_tid, NULL);
     audio_close();
     if (is->audio_codec_ctx_orig) {
         avcodec_close(is->audio_codec_ctx_orig);
@@ -611,8 +535,8 @@ int packet_queue_put(PacketQueue *q, AVPacket *pkt) {
     q->last_pkt = pkt1;
     q->nb_packets++;
     q->size += pkt1->pkt.size;
-    // Send signal to queue get function
     no_more_data_in_the_queue = 0;
+    // Send signal to queue get function
     SDL_CondSignal(q->cond);
 
     SDL_UnlockMutex(q->mutex);
@@ -676,7 +600,6 @@ void cp_stop_audio() {
     if (!is->stopped) {
         is->stopped = !is->stopped;
         audio_close();
-        /* is->audio_opend = 0; */
         packet_queue_flush(&is->audio_queue);
         is->duration = 0;
         is->audio_clock = 0;
@@ -690,7 +613,6 @@ void cp_set_volume(int volume) {
         return;
     AudioState *is = global_cplayer_ctx->is;
     volume = (SDL_MIX_MAXVOLUME / 100) * volume;
-    printf("%d\n", volume);
     is->audio_volume = volume;
 }
 
@@ -702,7 +624,7 @@ void cp_seek_audio(double percent) {
     }
     int incr = 0;
     AudioState *is = global_cplayer_ctx->is;
-    double seek_target = is->duration * percent / 100;
+    double seek_target = (double)is->duration * percent / 100.0;
     double current_pos = is->audio_clock;
     incr = seek_target > current_pos ? 1 : -1;
     stream_seek(global_cplayer_ctx, (int64_t)(seek_target * AV_TIME_BASE), incr);
@@ -770,57 +692,12 @@ CPlayer *cp_load_file(const char *filename) {
             return NULL;
         }
     } else {
-        printf("before close audio\n");
         audio_close();
-        printf("close audio\n");
         no_more_data_in_the_queue = 0;
-        printf("before got global cplayer ctx\n");
         cp = global_cplayer_ctx;
-        printf("got global cplayer ctx\n");
         AudioState *is = cp->is;
-        printf("got is\n");
-        /* is->audio_opend = 0; */
-        /* printf("before wait thread\n"); */
-        /* SDL_WaitThread(is->read_tid, NULL); */
-        /* printf("after wait thread\n"); */
-        /* is->read_thread_abord = 0; */
-        printf("before dump filename\n");
         cp->input_filename = av_strdup(filename);
-        printf("after dump filename\n");
         is->read_thread_abord = 1;
-
-        // clean work
-        /* if (is->audio_codec_ctx_orig) { */
-            /* printf("before close audio_codec_ctx_orig\n"); */
-            /* avcodec_close(is->audio_codec_ctx_orig); */
-            /* is->audio_codec_ctx_orig = NULL; */
-            /* printf("after close audio_codec_ctx_orig\n"); */
-        /* } */
-        /* if (is->audio_codec_ctx) { */
-            /* printf("before close audio_codec_ctx\n"); */
-            /* avcodec_close(is->audio_codec_ctx); */
-            /* is->audio_codec_ctx = NULL; */
-            /* printf("after close audio_codec_ctx\n"); */
-        /* } */
-        /* if (is->format_ctx) { */
-            /* printf("before close format_ctx\n"); */
-            /* avformat_close_input(&is->format_ctx); */
-            /* is->format_ctx = NULL; */
-            /* printf("after close format_ctx\n"); */
-        /* } */
-        /* printf("before flush queue\n"); */
-        /* packet_queue_flush(&is->audio_queue); */
-        /* printf("after flush queue\n"); */
-
-        /* printf("before create thread\n"); */
-        /* is->read_tid = SDL_CreateThread(read_thread, "read_thread", cp); */
-        /* if (!is->read_tid) { */
-            /* av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError()); */
-            /* stream_close(cp); */
-            /* return NULL; */
-        /* } */
-        /* printf("after create thread\n"); */
     }
-    printf("before return cp\n");
     return cp;
 }
