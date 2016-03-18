@@ -2,7 +2,7 @@ CC=gcc
 
 GLIB_COMPILE_RESOURCES=glib-compile-resources
 
-CFLAGS=-g `pkg-config --cflags gtk+-3.0` `sdl2-config --cflags` -O0
+CFLAGS=-g `pkg-config --cflags gtk+-3.0` `sdl2-config --cflags`
 
 NAME=cplayer
 
@@ -53,4 +53,8 @@ install:
 
 uninstall:
 	rm -r /usr/bin/$(NAME)
-	rm -r /usr/share/applications/$(DESKTOP)
+	rm -r /usr/share/applications/$(NAME).desktop
+	xdg-icon-resource uninstall --size 32 $(NAME)
+	xdg-icon-resource uninstall --size 48 $(NAME)
+	xdg-icon-resource uninstall --size 64 $(NAME)
+	xdg-icon-resource uninstall --size 128 $(NAME)
