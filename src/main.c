@@ -53,11 +53,8 @@ void *watch_dog(void *arg) {
             sleep(1);
             continue;
         } else {
-            printf("**********************stopping!!!!!***************\n");
             stopping();
-            printf("******************stopped!!sleep 3 s!!!**********\n");
             sleep(3);
-            printf("*******************sleeped enough ************\n");
             continue;
         }
     }
@@ -67,7 +64,6 @@ void start_watch_dog() {
     if (watch_dog_started) {
         return;
     } else {
-        printf("********************************create_watchdog*********************\n");
         pthread_t tid;
         int err = pthread_create(&tid, NULL, &watch_dog, NULL);
         if (err != 0) {
