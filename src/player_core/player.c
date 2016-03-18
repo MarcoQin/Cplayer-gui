@@ -308,7 +308,9 @@ void audio_callback(void *userdata, Uint8 *stream, int len){
             printf("end SDL_MixAudio\n");
         }
         len -= len1;
+        printf("before stream += len1\n");
         stream += len1;
+        printf("after stream += len1\n");
         is->audio_buf_index += len1;
     }
     printf("end callback\n");
@@ -363,26 +365,32 @@ static int read_thread(void *arg) {
 
     // Open audio file
     printf("before avformat_open_input\n");
-    if (avformat_open_input(&is->format_ctx, cp->input_filename, NULL, NULL) != 0)
+    if (avformat_open_input(&is->format_ctx, cp->input_filename, NULL, NULL) != 0) {
+        printf("avformat_open_input Failed: %s\n", cp->input_filename);
         return -1;  // Error
+    }
     printf("after avformat_open_input\n");
 
     // Retrieve stream information
     printf("before avformat_find_stream_info\n");
-    if (avformat_find_stream_info(is->format_ctx, NULL) < 0)
+    if (avformat_find_stream_info(is->format_ctx, NULL) < 0) {
+        printf("avformat find_stream Failed\n");
         return -1;
+    }
     printf("after avformat_find_stream_info\n");
 
     printf("before find stream index\n");
     is->audio_stream_index = -1;
-    unsigned int i;
+    int i;
     for (i = 0; i < is->format_ctx->nb_streams; i++) {
         if (is->format_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO && is->audio_stream_index < 0) {
             is->audio_stream_index = i;
         }
     }
-    if (is->audio_stream_index == -1)
+    if (is->audio_stream_index == -1) {
+        printf("audio_stream_index == -1, return -1;\n");
         return -1;
+    }
     printf("after find stream index\n");
 
     // Get metadata and others
@@ -425,7 +433,10 @@ static int read_thread(void *arg) {
     printf("after audio_open\n");
 
     printf("before avcodec_open2\n");
-    avcodec_open2(is->audio_codec_ctx, is->audio_codec, NULL);
+    if(avcodec_open2(is->audio_codec_ctx, is->audio_codec, NULL)<0) {
+        printf("avcodec_open2 failed\n");
+        return -1;
+    }
     printf("after avcodec_open2\n");
     // Read frames and put to audio_queue
 
@@ -742,10 +753,11 @@ CPlayer *cp_load_file(const char *filename) {
         is->read_thread_abord = 1;
         printf("before wait thread\n");
         SDL_WaitThread(is->read_tid, NULL);
+        printf("after wait thread\n");
         is->read_thread_abord = 0;
         printf("before dump filename\n");
         cp->input_filename = av_strdup(filename);
-        printf("maybe here broken\n");
+        printf("after dump filename\n");
 
         // clean work
         if (is->audio_codec_ctx_orig) {
@@ -779,5 +791,6 @@ CPlayer *cp_load_file(const char *filename) {
         }
         printf("after create thread\n");
     }
+    printf("before return cp\n");
     return cp;
 }

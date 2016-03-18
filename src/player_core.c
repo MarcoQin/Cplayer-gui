@@ -10,14 +10,18 @@ void init_player(char *path) {
     global_init();
     playing_status = PLAYING; /* playing status */
     alive = ALIVE;
-    cp_load_file(path);
+    printf("init_player before load file\n");
+    CPlayer *cp = cp_load_file(path);
+    printf("init_player after load file\n");
 }
 
 void load_song(int id) {
     char *path = get_song_path(id);
     db_update_song_state(PLAYING, id);
     if (alive == ALIVE) {
-        cp_load_file(path);
+        printf("**********normal before load file************\n");
+        CPlayer *cp = cp_load_file(path);
+        printf("*************normal after load file*************\n");
         playing_status = PLAYING; /* playing status */
     } else {
         init_player(path);
