@@ -417,7 +417,7 @@
             <property name="layout_style">start</property>
             <child>
               <object class="GtkButton" id="button9">
-                <property name="label" translatable="yes">==&gt;</property>
+                <property name="label" translatable="yes">&gt;=&gt;</property>
                 <property name="width_request">-1</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>

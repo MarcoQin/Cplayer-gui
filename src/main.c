@@ -29,6 +29,14 @@ enum {
     N_COLUMNS
 };
 
+enum {
+    LOOP_REPEAT_ALL = 0,
+    LOOP_REPEAT_SINGLE,
+    LOOP_NORMAL
+};
+
+int loop_state = LOOP_REPEAT_ALL;
+
 int watch_dog_started = 0;
 gpointer global_signal_handle_tree_view;
 gpointer global_signal_handel_user_data;
@@ -430,6 +438,26 @@ void stop_button_pressed(GtkButton *button, gpointer user_data) {
     update_play_state_label(user_data, "cplayer");
 }
 
+void loop_button_pressed(GtkButton *button, gpointer user_data) {
+    loop_state++;
+    if (loop_state > LOOP_NORMAL){
+        loop_state = LOOP_REPEAT_ALL;
+    }
+    char label[4];
+    switch(loop_state) {
+        case LOOP_REPEAT_ALL:
+            strcpy(label, ">=>");
+            break;
+        case LOOP_REPEAT_SINGLE:
+            strcpy(label, ">1<");
+            break;
+        case LOOP_NORMAL:
+            strcpy(label, "==>");
+            break;
+    }
+    gtk_button_set_label(button, label);
+}
+
 int main(int argc, char *argv[]) {
     GtkBuilder *builder;
     GObject *button;
@@ -522,6 +550,10 @@ int main(int argc, char *argv[]) {
 
     button = gtk_builder_get_object(builder, "button2"); /* "stop" button */
     g_signal_connect(button, "clicked", G_CALLBACK(stop_button_pressed),
+                     user_data);
+
+    button = gtk_builder_get_object(builder, "button9"); /* "Loop mode" button */
+    g_signal_connect(button, "clicked", G_CALLBACK(loop_button_pressed),
                      user_data);
 
 
