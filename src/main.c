@@ -49,7 +49,11 @@ void tree_view_scroll(gpointer tree_view, gint direction, gpointer user_data);
 
 void stopping() {
     if (playing_status != STOP) {
-        tree_view_scroll(global_signal_handle_tree_view, DIRECTION_DOWN, global_signal_handel_user_data);
+        if (loop_state == LOOP_REPEAT_SINGLE){
+            tree_view_scroll(global_signal_handle_tree_view, DIRECTION_CURRENT, global_signal_handel_user_data);
+        } else {
+            tree_view_scroll(global_signal_handle_tree_view, DIRECTION_DOWN, global_signal_handel_user_data);
+        }
         start_watch_dog();
     }
 }
@@ -449,7 +453,7 @@ void loop_button_pressed(GtkButton *button, gpointer user_data) {
             strcpy(label, ">=>");
             break;
         case LOOP_REPEAT_SINGLE:
-            strcpy(label, ">1<");
+            strcpy(label, ">1>");
             break;
         case LOOP_NORMAL:
             strcpy(label, "==>");
