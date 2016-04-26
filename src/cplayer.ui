@@ -42,6 +42,7 @@
       <pattern>*.flac</pattern>
       <pattern>*.ape</pattern>
       <pattern>*.ogg</pattern>
+      <pattern>*.wav</pattern>
     </patterns>
   </object>
   <object class="GtkFileChooserDialog" id="filechooserdialog1">
