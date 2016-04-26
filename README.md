@@ -4,7 +4,9 @@ Cplayer with GTK+ GUI.
 ####Lib Dependencies:
 
 - **GTK+-3.0** `sudo apt-get install libgtk-3-dev`
+    - (mac) `brew install gtk+3`
 - **SDL2.0**
+    - (mac) download the source and compile.
 - **ffmpeg:**
     - make and install the latest ffmpeg:
         - (maby need: sudo apt-get install yasm)
